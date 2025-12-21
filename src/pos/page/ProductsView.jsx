@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import axios from 'axios';
-import { Search, PlusCircle, Edit, Trash2, Loader, X, Package, Save, ArrowLeft, UploadCloud, Image, Download, Barcode } from 'lucide-react';
+import { Search, PlusCircle, Edit, Trash2, Loader, X, Package, Save, ArrowLeft, UploadCloud, Image, Download, Barcode, Eye, EyeOff, Printer } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import BulkAddProductsModal from '../components/BulkAddProductsModal';
 import ProductForm from '../components/ProductForm';
@@ -26,21 +26,40 @@ const usePosAuth = () => {
 const formatPrice = (cents) => `AED ${(cents / 100).toFixed(2)}`;
 
 const constructImageUrl = (relativeUrl) => {
-    if (!relativeUrl || relativeUrl.startsWith('data:') || relativeUrl.startsWith('http')) {
+    if (!relativeUrl) return '';
+    if (relativeUrl.startsWith('data:') || relativeUrl.startsWith('http')) {
         return relativeUrl;
     }
-    // Assuming URL is like /uploads/{tenantId}/{subfolder}/{filename}
-    // And we need to convert it to /api/files/view/{tenantId}/{subfolder}/{filename}
-    const pathParts = relativeUrl.split('/').filter(p => p);
-    if (pathParts[0] === 'uploads' && pathParts.length >= 4) {
-        return `${API_URL}/pos/uploads/view/${pathParts.slice(1).join('/')}`;
+
+    // Backend returns paths relative to the uploads root (e.g., "tenantId/folder/file.ext")
+    // The view endpoint is /api/pos/uploads/view/**
+
+    const cleanPath = relativeUrl.startsWith('/') ? relativeUrl.slice(1) : relativeUrl;
+
+    // Handle potential legacy paths starting with 'uploads/'
+    if (cleanPath.startsWith('uploads/')) {
+        return `${API_URL}/pos/uploads/view/${cleanPath.replace('uploads/', '')}`;
     }
-    return `${API_URL}${relativeUrl}`;
+
+    return `${API_URL}/pos/uploads/view/${cleanPath}`;
 };
 
 // --- Barcode Modal ---
-const BarcodeModal = ({ isOpen, onClose, variant }) => {
-    if (!isOpen || !variant) return null;
+const BarcodeModal = ({ isOpen, onClose, product }) => {
+    const [selectedVariant, setSelectedVariant] = useState(null);
+
+    useEffect(() => {
+        if (isOpen && product?.variants?.length > 0) {
+            setSelectedVariant(product.variants[0]);
+        }
+    }, [isOpen, product]);
+
+    if (!isOpen || !product) return null;
+
+    const variants = product.variants || [];
+    const variant = selectedVariant;
+
+    if (!variant) return null;
 
     const handleDownload = () => {
         const link = document.createElement('a');
@@ -54,9 +73,66 @@ const BarcodeModal = ({ isOpen, onClose, variant }) => {
     return (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50 p-4" onClick={onClose}>
             <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-sm text-center" onClick={e => e.stopPropagation()}>
-                <h3 className="text-lg font-semibold mb-4">QR Code for {variant.sku}</h3>
-                <img src={constructImageUrl(variant.barcodeImageUrl)} alt={`QR Code for ${variant.sku}`} className="mx-auto border rounded-md" />
-                <button onClick={handleDownload} className="btn-primary mt-6 w-full flex items-center justify-center gap-2"><Download size={16} /> Download</button>
+                <div className="flex justify-between items-center mb-4">
+                    <h3 className="text-lg font-semibold">Barcode: {product.name}</h3>
+                    <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
+                        <X size={20} />
+                    </button>
+                </div>
+
+                {variants.length > 1 && (
+                    <div className="mb-4">
+                        <label className="block text-sm font-medium text-slate-700 mb-1 text-left">Select Variant</label>
+                        <select
+                            className="w-full p-2 border rounded-md bg-slate-50"
+                            value={variants.indexOf(variant)}
+                            onChange={(e) => setSelectedVariant(variants[e.target.value])}
+                        >
+                            {variants.map((v, idx) => (
+                                <option key={v.id || idx} value={idx}>
+                                    {v.sku} {v.attributes && Object.keys(v.attributes).length > 0 ? `(${Object.values(v.attributes).join(', ')})` : ''}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+                )}
+
+                <div className="mb-2">
+                    <p className="text-sm text-slate-500">SKU: {variant.sku}</p>
+                    <p className="font-mono text-lg font-bold tracking-wider my-1">{variant.barcode || 'No Barcode'}</p>
+                </div>
+
+                {variant.barcodeImageUrl ? (
+                    <img src={constructImageUrl(variant.barcodeImageUrl)} alt={`Barcode for ${variant.sku}`} className="mx-auto border rounded-md w-48 h-48 object-contain bg-white" />
+                ) : (
+                    <div className="h-48 w-48 mx-auto border rounded-md flex items-center justify-center bg-slate-50 text-slate-400">
+                        <span>No Image</span>
+                    </div>
+                )}
+
+                <div className="flex flex-col gap-2 mt-6">
+                    <button onClick={() => {
+                        const imgUrl = constructImageUrl(variant.barcodeImageUrl);
+                        const win = window.open('', '_blank');
+                        win.document.write(`
+                            <html>
+                                <head><style>body{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;margin:0;} @media print { body { height: auto; } }</style></head>
+                                <body>
+                                    <h2 style="margin-bottom:10px;">${product.name}</h2>
+                                    <img src="${imgUrl}" style="max-width:300px;" onload="window.print();" />
+                                    <div style="margin-top:10px;font-family:monospace;font-size:24px;font-weight:bold;">${variant.barcode || variant.sku}</div>
+                                    <div style="margin-top:5px;font-size:14px;">${variant.sku}</div>
+                                </body>
+                            </html>
+                        `);
+                        win.document.close();
+                    }} disabled={!variant.barcodeImageUrl} className="btn-primary w-full flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
+                        <Printer size={16} /> Print
+                    </button>
+                    <button onClick={handleDownload} disabled={!variant.barcodeImageUrl} className="btn-secondary w-full flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
+                        <Download size={16} /> Download
+                    </button>
+                </div>
             </div>
         </div>
     );
@@ -72,7 +148,8 @@ const ProductsView = () => {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
     const [isBulkImageModalOpen, setIsBulkImageModalOpen] = useState(false);
-    const [barcodeModalVariant, setBarcodeModalVariant] = useState(null);
+    const [barcodeModalProduct, setBarcodeModalProduct] = useState(null);
+    const [showInactive, setShowInactive] = useState(false);
 
 
     const { isPosAdmin, canManage } = usePosAuth();
@@ -122,7 +199,7 @@ const ProductsView = () => {
     };
 
     const handleDelete = async (productId) => {
-        if (window.confirm('Are you sure you want to delete this product and all its variants?')) {
+        if (window.confirm('Are you sure you want to delete this product? It will be deactivated if it has history.')) {
             const token = localStorage.getItem('token');
             try {
                 await axios.delete(`${API_URL}/pos/products/${productId}`, { headers: { "Authorization": `Bearer ${token}` } });
@@ -133,14 +210,28 @@ const ProductsView = () => {
         }
     };
 
+    const handleHardDelete = async (productId) => {
+        if (window.confirm('WARNING: This will PERMANENTLY delete the product and all history. This cannot be undone. Are you sure?')) {
+            const token = localStorage.getItem('token');
+            try {
+                await axios.delete(`${API_URL}/pos/products/${productId}/hard`, { headers: { "Authorization": `Bearer ${token}` } });
+                fetchProducts();
+                alert('Product permanently deleted.');
+            } catch (err) {
+                alert(`Failed to hard delete: ${err.response?.data?.message || err.message}`);
+            }
+        }
+    };
+
     const filteredProducts = useMemo(() =>
         products.filter(p =>
-            p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            (p.sku || '').toLowerCase().includes(searchTerm.toLowerCase())
-        ), [products, searchTerm]);
+            (showInactive || p.active) &&
+            (p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                (p.sku || '').toLowerCase().includes(searchTerm.toLowerCase()))
+        ), [products, searchTerm, showInactive]);
 
-    const handleGenerateBarcode = (variant) => {
-        setBarcodeModalVariant(variant);
+    const handleViewBarcodes = (product) => {
+        setBarcodeModalProduct(product);
     };
 
     return (
@@ -165,9 +256,24 @@ const ProductsView = () => {
                 )}
             </div>
 
-            <div className="relative mb-4">
-                <input type="text" placeholder="Search by name or SKU..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="input w-full max-w-sm pl-10" />
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
+            <div className="relative mb-4 flex gap-4">
+                <div className="relative flex-grow">
+                    <input type="text" placeholder="Search by name or SKU..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="input w-full pl-10" />
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
+                </div>
+                <button
+                    onClick={() => setShowInactive(!showInactive)}
+                    className={`flex items-center gap-2 px-3 py-2 rounded-lg border transition-colors ${showInactive
+                        ? 'bg-amber-50 border-amber-200 text-amber-700 hover:bg-amber-100'
+                        : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                        }`}
+                    title={showInactive ? "Hide Inactive Products" : "Show Inactive Products"}
+                >
+                    {showInactive ? <Eye size={18} /> : <EyeOff size={18} />}
+                    <span className="text-sm font-medium hidden md:inline">
+                        {showInactive ? 'Inactive' : 'Active Only'}
+                    </span>
+                </button>
             </div>
 
             <div className="bg-white rounded-xl shadow-sm overflow-hidden flex-grow">
@@ -175,7 +281,7 @@ const ProductsView = () => {
                     <table className="min-w-full divide-y divide-slate-200">
                         <thead className="bg-slate-50 sticky top-0">
                             <tr>
-                                <th className="th-cell">Name</th><th className="th-cell">SKU</th><th className="th-cell">Status</th><th className="th-cell text-center">Variants</th>
+                                <th className="th-cell">Name</th><th className="th-cell">SKU</th><th className="th-cell">Barcode</th><th className="th-cell">Status</th><th className="th-cell text-center">Variants</th>
                                 {canManage && <th className="th-cell">Actions</th>}
                             </tr>
                         </thead>
@@ -189,6 +295,7 @@ const ProductsView = () => {
                                     <tr key={product.id} className="border-b border-slate-200 hover:bg-slate-50">
                                         <td className="td-cell font-medium">{product.name}</td>
                                         <td className="td-cell text-sm text-slate-500">{product.sku || '-'}</td>
+                                        <td className="td-cell text-sm text-slate-500">{product.variants?.[0]?.barcode || '-'}</td>
                                         <td className="td-cell">
                                             <span className={`px-2 py-1 text-xs font-semibold rounded-full ${product.active ? 'bg-green-100 text-green-800' : 'bg-slate-100 text-slate-600'}`}>
                                                 {product.active ? 'Active' : 'Inactive'}
@@ -199,7 +306,20 @@ const ProductsView = () => {
                                             <td className="td-cell">
                                                 <div className="flex items-center gap-2">
                                                     <button onClick={() => handleEdit(product)} className="p-1.5 text-blue-600 hover:bg-blue-100 rounded-full" title="Edit"><Edit size={16} /></button>
-                                                    {isPosAdmin && <button onClick={() => handleDelete(product.id)} className="p-1.5 text-red-600 hover:bg-red-100 rounded-full" title="Delete"><Trash2 size={16} /></button>}
+                                                    {product.variants?.length > 0 && (
+                                                        <button onClick={() => handleViewBarcodes(product)} className="p-1.5 text-slate-600 hover:bg-slate-100 rounded-full" title="View/Print Barcodes">
+                                                            <Printer size={16} />
+                                                        </button>
+                                                    )}
+                                                    {isPosAdmin && (
+                                                        <>
+                                                            {product.active ? (
+                                                                <button onClick={() => handleDelete(product.id)} className="p-1.5 text-red-600 hover:bg-red-100 rounded-full" title="Delete (Soft)"><Trash2 size={16} /></button>
+                                                            ) : (
+                                                                <button onClick={() => handleHardDelete(product.id)} className="p-1.5 text-red-800 hover:bg-red-200 rounded-full border border-red-200" title="Delete Permanently (Hard)"><Trash2 size={16} /></button>
+                                                            )}
+                                                        </>
+                                                    )}
                                                 </div>
                                             </td>
                                         )}
@@ -249,7 +369,7 @@ const ProductsView = () => {
                                 onSave={handleSave}
                                 onCancel={handleClosePanel}
                                 isSubmitting={isSubmitting}
-                                onGenerateBarcode={handleGenerateBarcode}
+                                onGenerateBarcode={() => handleViewBarcodes(selectedProduct)}
                             />
                             <div className="p-4 border-t bg-slate-50 flex-shrink-0 flex justify-end sticky gap-2 bottom-0 z-50">
                                 <button type="button" onClick={handleClosePanel} className="btn-secondary" disabled={isSubmitting}>Cancel</button>
@@ -274,9 +394,9 @@ const ProductsView = () => {
             />
 
             <BarcodeModal
-                isOpen={!!barcodeModalVariant}
-                onClose={() => setBarcodeModalVariant(null)}
-                variant={barcodeModalVariant}
+                isOpen={!!barcodeModalProduct}
+                onClose={() => setBarcodeModalProduct(null)}
+                product={barcodeModalProduct}
             />
         </div>
     );

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import { ArrowLeft, Save, Loader2, Plus, Trash2, Paperclip } from 'lucide-react';
 
@@ -7,9 +7,11 @@ const API_URL = import.meta.env.VITE_API_BASE_URL;
 
 const OrderForm = () => {
     const navigate = useNavigate();
+    const location = useLocation();
     const { id } = useParams();
     const [searchParams] = useSearchParams();
     const quotationId = searchParams.get('quotationId');
+    const cloneId = searchParams.get('cloneId');
     const isEditing = !!id;
 
     const [formData, setFormData] = useState({
@@ -19,7 +21,7 @@ const OrderForm = () => {
         customerPoNo: '',
         customerPoDate: '',
         salespersonId: '',
-        saleType: 'With Discount At Order Level',
+        quotationType: 'WITHOUT_DISCOUNT',
         items: [],
         termsAndConditions: '',
         notes: '',
@@ -97,6 +99,40 @@ const OrderForm = () => {
                     notes: data.notes || '',
                     totalDiscountPercentage: discountPercentage.toFixed(2),
                     otherChargesPercentage: chargesPercentage.toFixed(2),
+                    quotationType: data.quotationType || 'WITHOUT_DISCOUNT' // Pre-fill type from quotation if available
+                }));
+            } else if (cloneId) {
+                // Cloning logic
+                const orderRes = await axios.get(`${API_URL}/sales/orders/${cloneId}`, { headers: { Authorization: token } });
+                const data = orderRes.data;
+                const subTotal = data.subTotal || 0;
+                const discountPercentage = subTotal > 0 ? ((data.totalDiscount || 0) / subTotal) * 100 : 0;
+                const chargesPercentage = subTotal > 0 ? ((data.otherCharges || 0) / subTotal) * 100 : 0;
+
+                setFormData(prev => ({
+                    ...prev,
+                    ...data,
+                    salesOrderNumber: '', // Clear identifying fields
+                    id: undefined,
+                    salesOrderDate: new Date().toISOString().split('T')[0],
+                    customerPoDate: '',
+                    customerPoNo: '',
+                    status: 'DRAFT',
+                    items: data.items.map(item => ({
+                        ...item,
+                        id: undefined,
+                        taxPercentage: item.taxPercentage || 0,
+                    })),
+                    totalDiscountPercentage: discountPercentage.toFixed(2),
+                    otherChargesPercentage: chargesPercentage.toFixed(2),
+                    attachments: [] // Do not clone attachments by default
+                }));
+            } else if (location.state?.lead) {
+                const lead = location.state.lead;
+                setFormData(prev => ({
+                    ...prev,
+                    customerId: lead.companyId || '',
+                    reference: lead.leadNo ? `Lead No: ${lead.leadNo}` : '',
                 }));
             }
         } catch (err) {
@@ -105,7 +141,7 @@ const OrderForm = () => {
         } finally {
             setLoading(false);
         }
-    }, [id, isEditing, quotationId]);
+    }, [id, isEditing, quotationId, cloneId, location.state]);
 
     useEffect(() => {
         fetchDependencies();
@@ -177,27 +213,51 @@ const OrderForm = () => {
     const calculateTotals = () => {
         let subTotal = 0;
         let totalTax = 0;
+        let itemDiscounts = 0;
+
         formData.items.forEach(item => {
-            const amount = (item.quantity || 0) * (item.rate || 0);
+            const quantity = parseFloat(item.quantity || 0);
+            const rate = parseFloat(item.rate || 0);
+            let amount = quantity * rate;
+
+            // Calculate item level discount if applicable
+            if (formData.quotationType === 'WITH_DISCOUNT_AT_ITEM_LEVEL') {
+                const discountPercent = parseFloat(item.discountPercent || 0);
+                const discountValue = amount * (discountPercent / 100);
+                itemDiscounts += discountValue;
+            }
+
             subTotal += amount;
+
+            // Tax calculation
+            let taxableAmount = amount;
+            if (formData.quotationType === 'WITH_DISCOUNT_AT_ITEM_LEVEL') {
+                taxableAmount -= (amount * (parseFloat(item.discountPercent || 0) / 100));
+            }
+
             if (!item.isTaxExempt) {
                 const taxRate = parseFloat(item.taxPercentage || 0);
-                const taxValue = amount * (taxRate / 100);
+                const taxValue = taxableAmount * (taxRate / 100);
                 totalTax += taxValue;
             }
         });
 
         // Calculate discount and charges based on percentage
-        const discountPercentage = parseFloat(formData.totalDiscountPercentage) || 0;
-        const chargesPercentage = parseFloat(formData.otherChargesPercentage) || 0;
+        let totalDiscount = 0;
+        if (formData.quotationType === 'WITH_DISCOUNT_AT_ORDER_LEVEL') {
+            const discountPercentage = parseFloat(formData.totalDiscountPercentage) || 0;
+            totalDiscount = subTotal * (discountPercentage / 100);
+        } else if (formData.quotationType === 'WITH_DISCOUNT_AT_ITEM_LEVEL') {
+            totalDiscount = itemDiscounts;
+        }
 
-        const discount = subTotal * (discountPercentage / 100);
+        const chargesPercentage = parseFloat(formData.otherChargesPercentage) || 0;
         const charges = subTotal * (chargesPercentage / 100);
 
-        const grossTotal = subTotal - discount;
+        const grossTotal = subTotal - totalDiscount;
         const netTotal = grossTotal + totalTax + charges;
 
-        return { subTotal, totalTax, discount, charges, grossTotal, netTotal };
+        return { subTotal, totalTax, discount: totalDiscount, charges, grossTotal, netTotal, totalDiscount };
     };
 
     const totals = calculateTotals();
@@ -249,6 +309,22 @@ const OrderForm = () => {
                 await axios.put(`${API_URL}/sales/orders/${id}`, payload, config);
             } else {
                 await axios.post(`${API_URL}/sales/orders`, payload, config);
+
+                // Update Quotation status if reference is present (assumed to be Quotation Number)
+                if (formData.reference) {
+                    try {
+                        await axios.patch(`${API_URL}/sales/quotations/status/by-number`, null, {
+                            params: {
+                                quotationNumber: formData.reference,
+                                status: 'ORDERED'
+                            },
+                            headers: { Authorization: token }
+                        });
+                    } catch (statusErr) {
+                        console.warn("Failed to update quotation status automatically", statusErr);
+                        // Do not block navigation for this
+                    }
+                }
             }
             navigate('/sales/orders');
         } catch (err) {
@@ -268,7 +344,7 @@ const OrderForm = () => {
             <header className="bg-white shadow-sm p-4 border-b flex items-center justify-between sticky top-0 z-10">
                 <div className="flex items-center gap-4">
                     <button onClick={() => navigate('/sales/orders')} className="p-2 rounded-full hover:bg-slate-100"><ArrowLeft className="h-5 w-5 text-slate-600" /></button>
-                    <h1 className="text-xl font-bold text-slate-800">{isEditing ? 'Edit Sales Order' : 'New Sales Order'}</h1>
+                    <h1 className="text-xl font-bold text-slate-800">{isEditing ? 'Edit Sales Order' : (cloneId ? 'Clone Sales Order' : 'New Sales Order')}</h1>
                 </div>
                 <div className="flex items-center gap-4">
                     <button type="button" onClick={() => navigate('/sales/orders')} className="btn-secondary">Cancel</button>
@@ -308,10 +384,11 @@ const OrderForm = () => {
                             </select>
                         </div>
                         <div>
-                            <label className="label">Sale Type</label>
-                            <select name="saleType" value={formData.saleType} onChange={handleHeaderChange} className="input">
-                                <option value="With Discount At Order Level">With Discount At Order Level</option>
-                                <option value="Without Discount">Without Discount</option>
+                            <label className="label">Quotation Type</label>
+                            <select name="quotationType" value={formData.quotationType} onChange={handleHeaderChange} className="input">
+                                <option value="WITHOUT_DISCOUNT">Without Discount</option>
+                                <option value="WITH_DISCOUNT_AT_ITEM_LEVEL">Discount at Item Level</option>
+                                <option value="WITH_DISCOUNT_AT_ORDER_LEVEL">Discount at Order Level</option>
                             </select>
                         </div>
                         <div>
@@ -334,6 +411,9 @@ const OrderForm = () => {
                                         <th className="py-2 px-2 text-left font-medium">Subcategory</th>
                                         <th className="py-2 px-2 text-left font-medium w-24">Qty</th>
                                         <th className="py-2 px-2 text-left font-medium w-32">Rate</th>
+                                        {formData.quotationType === 'WITH_DISCOUNT_AT_ITEM_LEVEL' && (
+                                            <th className="py-2 px-2 text-left font-medium w-24">Disc (%)</th>
+                                        )}
                                         <th className="py-2 px-2 text-left font-medium w-32">Tax (%)</th>
                                         <th className="py-2 px-2 text-left font-medium w-32">Amount</th>
                                         <th className="py-2 px-2 text-left font-medium w-12"></th>
@@ -363,6 +443,9 @@ const OrderForm = () => {
                                             </td>
                                             <td className="p-2"><input type="number" name="quantity" value={item.quantity} onChange={(e) => handleItemChange(index, e)} className="input text-sm" min="1" /></td>
                                             <td className="p-2"><input type="number" name="rate" value={item.rate} onChange={(e) => handleItemChange(index, e)} className="input text-sm" /></td>
+                                            {formData.quotationType === 'WITH_DISCOUNT_AT_ITEM_LEVEL' && (
+                                                <td className="p-2"><input type="number" name="discountPercent" value={item.discountPercent || 0} onChange={(e) => handleItemChange(index, e)} className="input text-sm" /></td>
+                                            )}
                                             <td className="p-2">
                                                 <div className="flex flex-col gap-1">
                                                     <input type="number" name="taxPercentage" value={item.taxPercentage || 0} onChange={(e) => handleItemChange(index, e)} className="input text-sm" disabled={item.isTaxExempt} />
@@ -371,7 +454,7 @@ const OrderForm = () => {
                                                     </label>
                                                 </div>
                                             </td>
-                                            <td className="p-2 text-right font-medium">AED {((item.quantity || 0) * (item.rate || 0)).toFixed(2)}</td>
+                                            <td className="p-2 text-right font-medium">AED {(((item.quantity || 0) * (item.rate || 0)) - (formData.quotationType === 'WITH_DISCOUNT_AT_ITEM_LEVEL' ? ((item.quantity || 0) * (item.rate || 0) * ((item.discountPercent || 0) / 100)) : 0)).toFixed(2)}</td>
                                             <td className="p-2 text-center"><button type="button" onClick={() => removeItem(index)} className="p-1 text-red-500 hover:bg-red-100 rounded-full"><Trash2 size={16} /></button></td>
                                         </tr>
                                     ))}
@@ -422,14 +505,23 @@ const OrderForm = () => {
                         </div>
                         <div className="p-4 border rounded-lg bg-white space-y-2">
                             <div className="flex justify-between items-center"><span className="text-sm text-gray-600">Sub Total</span><span className="font-medium">AED {totals.subTotal.toFixed(2)}</span></div>
-                            <div className="flex justify-between items-center">
-                                <label className="text-sm text-gray-600">Total Discount</label>
-                                <div className="flex items-center gap-2">
-                                    <input type="number" name="totalDiscountPercentage" value={formData.totalDiscountPercentage} onChange={handleHeaderChange} className="input text-sm w-20 text-right" placeholder="%" />
-                                    <span className="text-sm">%</span>
-                                    <span className="font-medium w-24 text-right">{totals.discount.toFixed(2)}</span>
+                            {formData.quotationType === 'WITH_DISCOUNT_AT_ORDER_LEVEL' && (
+                                <div className="flex justify-between items-center">
+                                    <label className="text-sm text-gray-600">Total Discount</label>
+                                    <div className="flex items-center gap-2">
+                                        <input type="number" name="totalDiscountPercentage" value={formData.totalDiscountPercentage} onChange={handleHeaderChange} className="input text-sm w-20 text-right" placeholder="%" />
+                                        <span className="text-sm">%</span>
+                                        <span className="font-medium w-24 text-right">{totals.discount.toFixed(2)}</span>
+                                    </div>
                                 </div>
-                            </div>
+                            )}
+
+                            {formData.quotationType === 'WITH_DISCOUNT_AT_ITEM_LEVEL' && (
+                                <div className="flex justify-between items-center border-t pt-2 mt-2">
+                                    <span className="text-sm text-gray-600">Total Discount:</span>
+                                    <span className="font-medium">AED {totals.totalDiscount.toFixed(2)}</span>
+                                </div>
+                            )}
                             <div className="flex justify-between items-center"><span className="text-sm text-gray-600">Gross Total</span><span className="font-medium">AED {totals.grossTotal.toFixed(2)}</span></div>
                             <div className="flex justify-between items-center"><span className="text-sm text-gray-600">Total Tax</span><span className="font-medium">AED {totals.totalTax.toFixed(2)}</span></div>
                             <div className="flex justify-between items-center">

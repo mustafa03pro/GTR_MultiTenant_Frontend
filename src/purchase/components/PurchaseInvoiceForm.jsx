@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, useParams, Link } from 'react-router-dom';
+import { useNavigate, useParams, Link, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import { Plus, X, Upload, Save, Trash2, Calendar, FileText, ChevronDown, Paperclip, Loader } from 'lucide-react';
 
@@ -8,6 +8,7 @@ const API_URL = import.meta.env.VITE_API_BASE_URL || '';
 const PurchaseInvoiceForm = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const isEdit = Boolean(id);
 
   const [loading, setLoading] = useState(false);
@@ -73,8 +74,42 @@ const PurchaseInvoiceForm = () => {
     fetchMasterData();
     if (isEdit) {
       loadInvoice();
+    } else if (location.state?.fromPo && items.length > 0 && suppliers.length > 0) {
+       // Pre-fill from PO only after master data is loaded (to map IDs if needed, though PO usually has IDs)
+       // Actually PO has supplierId and itemIds directly usually.
+       const po = location.state.fromPo;
+       setFormData(prev => ({
+           ...prev,
+           supplierId: po.supplierId || '',
+           orderNumber: po.poNumber || '',
+           notes: po.notes || po.remark || '', // Map remark/notes
+           template: po.template || 'Standard'
+       }));
+
+       if (po.items && po.items.length > 0) {
+           setLines(po.items.map(it => ({
+               lineNumber: it.lineNumber,
+               categoryId: it.categoryId || '',
+               subCategoryId: it.subCategoryId || '',
+               itemId: it.itemId || '',
+               description: it.description || '',
+               quantityGross: it.quantity || 0,
+               quantityNet: it.quantity || 0, // Assume same
+               unitId: it.unitId || '',
+               rate: it.rate || 0,
+               amount: it.amount || 0,
+               taxId: it.taxId || '',
+               taxPercent: it.taxPercent || 0,
+               lineDiscount: it.lineDiscount || 0,
+               discountPercent: it.discountPercent || 0
+           })));
+           
+           // Fetch subcategories for these items
+           const catIds = Array.from(new Set(po.items.map(i => i.categoryId).filter(Boolean)));
+           catIds.forEach(cid => fetchSubCategoriesForCategory(cid));
+       }
     }
-  }, [id]);
+  }, [id, location.state, items.length, suppliers.length]);
 
   useEffect(() => {
     calculateTotals();
@@ -549,7 +584,19 @@ const PurchaseInvoiceForm = () => {
                    value={formData.dueDate}
                    onChange={e => setFormData({...formData, dueDate: e.target.value})}
                  />
-             </div>         
+             </div>
+             
+             {/* Template */}
+             <div className="col-span-2 md:col-span-4 lg:col-span-4">
+                 <label className="block text-xs font-bold text-slate-700 mb-1">Template</label>
+                 <input 
+                   type="text" 
+                   className="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-sky-500"
+                   value={formData.template}
+                   onChange={e => setFormData({...formData, template: e.target.value})}
+                   placeholder="e.g. Standard"
+                 />
+             </div>
           </div>
 
           {/* Bill Type & Toggle */}
@@ -738,10 +785,10 @@ const PurchaseInvoiceForm = () => {
               <div className="flex-1 space-y-6">
                  <div>
                     <label className="block text-sm font-bold text-slate-700 mb-2">Attach File(s)</label>
-                    <div className="border border-dashed border-gray-300 bg-white p-4 rounded flex flex-col items-center justify-center gap-2 cursor-pointer hover:bg-gray-50 transition">
+                    <div className="relative border border-dashed border-gray-300 bg-white p-4 rounded flex flex-col items-center justify-center gap-2 cursor-pointer hover:bg-gray-50 transition">
                         <Upload size={24} className="text-gray-400" />
                         <span className="text-xs text-gray-500">Choose File</span>
-                        <input type="file" multiple className="opacity-0 absolute w-full h-full cursor-pointer" onChange={handleFileChange} />
+                        <input type="file" multiple className="opacity-0 absolute w-full h-full left-0 top-0 cursor-pointer" onChange={handleFileChange} />
                     </div>
                     {/* Attachments List */}
                     <div className="mt-2 space-y-1">

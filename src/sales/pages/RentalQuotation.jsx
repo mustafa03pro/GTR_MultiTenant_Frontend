@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import { Plus, Edit, Trash2, Loader2, Search, User, Monitor } from 'lucide-react';
+import { Plus, Edit, Trash2, Loader2, Search, User, Monitor, History } from 'lucide-react';
+import FollowUpModal from '../components/FollowUpModal';
+import FollowUpHistoryModal from '../components/FollowUpHistoryModal';
 
 const API_URL = import.meta.env.VITE_API_BASE_URL;
 
@@ -26,8 +28,8 @@ const RentalQuotation = () => {
     // Filters matching the image
     const [filters, setFilters] = useState({
         customerName: '',
-        fromDate: new Date().toISOString().split('T')[0], // Default today for demo matching image logic
-        toDate: new Date(new Date().setDate(new Date().getDate() + 1)).toISOString().split('T')[0],
+        fromDate: '',
+        toDate: '',
         type: 'All',
         status: 'All',
         teamMember: '' // 'super admin' in image example
@@ -37,31 +39,34 @@ const RentalQuotation = () => {
     const [pageSize, setPageSize] = useState(10);
     const [totalPages, setTotalPages] = useState(0);
 
-    const authHeaders = useMemo(() => ({ headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } }), []);
-
-    const fetchEmployees = useCallback(async () => {
-        try {
-            const response = await axios.get(`${API_URL}/employees/all`, authHeaders);
-            setEmployees(response.data || []);
-        } catch (err) {
-            console.error("Failed to fetch employees", err);
-        }
-    }, [authHeaders]);
+    // Follow Up Modal State
+    const [selectedQuotationId, setSelectedQuotationId] = useState(null);
+    const [showFollowUpModal, setShowFollowUpModal] = useState(false);
+    const [showHistoryModal, setShowHistoryModal] = useState(false);
 
     const fetchQuotations = useCallback(async () => {
         setLoading(true);
         try {
-            // Mapping filters to backend params
-            // Note: Backend Controller `getAllRentalQuotations` takes Pageable. 
-            // It might not support searching/filtering yet based on the provided partial snippet.
-            // I will send params anyway in case backend has specification/criteria support not shown.
+            const token = localStorage.getItem('token');
+            const authConfig = { headers: { Authorization: `Bearer ${token}` } };
+
+            // Prepare filters
             const params = {
                 page: currentPage,
                 size: pageSize,
-                search: filters.customerName
+                customerName: filters.customerName || undefined,
+                fromDate: filters.fromDate || undefined,
+                toDate: filters.toDate || undefined,
+                status: filters.status === 'All' ? undefined : filters.status,
+                type: filters.type === 'All' ? undefined : filters.type,
+                salespersonId: filters.teamMember || undefined
             };
-            const response = await axios.get(`${API_URL}/sales/rental-quotations`, { params, ...authHeaders });
-            let fetchedQuotations = response.data.content || [];
+
+            const response = await axios.get(`${API_URL}/sales/rental-quotations`, { params, ...authConfig });
+
+            // Robust data extraction
+            let fetchedQuotations = response.data.content || (Array.isArray(response.data) ? response.data : []);
+            const totalPagesInfo = response.data.totalPages || (Array.isArray(response.data) ? 1 : 0);
 
             // Extract unique customer IDs
             const customerIds = [...new Set(fetchedQuotations.map(q => q.customerId).filter(id => id))];
@@ -69,7 +74,7 @@ const RentalQuotation = () => {
             // Fetch party details for each customer ID
             if (customerIds.length > 0) {
                 const partyPromises = customerIds.map(id =>
-                    axios.get(`${API_URL}/parties/${id}`, authHeaders)
+                    axios.get(`${API_URL}/parties/${id}`, authConfig)
                         .then(res => ({ id, data: res.data }))
                         .catch(err => ({ id, data: null }))
                 );
@@ -88,15 +93,32 @@ const RentalQuotation = () => {
             }
 
             setQuotations(fetchedQuotations);
-            setTotalPages(response.data.totalPages);
+            setTotalPages(totalPagesInfo);
             setError(null);
         } catch (err) {
-            setError('Failed to fetch rental quotations. Please try again.');
             console.error(err);
+            // Don't show generic error if it is just a 404 (no content?) - though 404 usually means endpoint wrong.
+            // If it's a search that yields no results, backend might return empty list.
+            // If actual error:
+            if (err.response && err.response.status === 401) {
+                setError("Unauthorized. Please login again.");
+            } else {
+                setError('Failed to fetch rental quotations. Please check connection or contact support.');
+            }
         } finally {
             setLoading(false);
         }
-    }, [currentPage, pageSize, filters, authHeaders]);
+    }, [currentPage, pageSize, filters]);
+
+    const fetchEmployees = useCallback(async () => {
+        try {
+            const token = localStorage.getItem('token');
+            const response = await axios.get(`${API_URL}/employees/all`, { headers: { Authorization: `Bearer ${token}` } });
+            setEmployees(response.data || []);
+        } catch (err) {
+            console.error("Failed to fetch employees", err);
+        }
+    }, []);
 
     useEffect(() => {
         fetchEmployees();
@@ -115,7 +137,8 @@ const RentalQuotation = () => {
     const handleDelete = async (id) => {
         if (window.confirm('Are you sure you want to delete this rental quotation?')) {
             try {
-                await axios.delete(`${API_URL}/sales/rental-quotations/${id}`, authHeaders);
+                const token = localStorage.getItem('token');
+                await axios.delete(`${API_URL}/sales/rental-quotations/${id}`, { headers: { Authorization: `Bearer ${token}` } });
                 fetchQuotations();
             } catch (err) {
                 alert(`Error: ${err.response?.data?.message || 'Failed to delete quotation.'}`);
@@ -156,7 +179,9 @@ const RentalQuotation = () => {
                             <label className="block text-xs font-bold text-gray-700 mb-1">Type</label>
                             <select name="type" value={filters.type} onChange={handleFilterChange} className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm bg-white">
                                 <option value="All">All</option>
-                                <option value="Standard">Standard</option>
+                                <option value="WITHOUT_DISCOUNT">Without Discount</option>
+                                <option value="WITH_DISCOUNT_AT_ITEM_LEVEL">With Discount At Item Level</option>
+                                <option value="WITH_DISCOUNT_AT_ORDER_LEVEL">With Discount At Order Level</option>
                             </select>
                         </div>
                     </div>
@@ -226,8 +251,20 @@ const RentalQuotation = () => {
                                             <td className="px-4 py-2 border-r">{currentPage * pageSize + index + 1}</td>
                                             <td className="px-4 py-2 border-r">{q.quotationDate ? new Date(q.quotationDate).toLocaleDateString() : '-'}</td>
                                             <td className="px-4 py-2 border-r"></td>
+
                                             <td className="px-4 py-2 border-r space-y-1">
-                                                <button className="flex items-center gap-1 bg-green-500 text-white px-2 py-0.5 rounded text-[10px] w-full justify-center hover:bg-green-600"><User size={10} /> Follow Up</button>
+                                                <button
+                                                    onClick={() => { setSelectedQuotationId(q.id); setShowFollowUpModal(true); }}
+                                                    className="flex items-center gap-1 bg-green-500 text-white px-2 py-0.5 rounded text-[10px] w-full justify-center hover:bg-green-600"
+                                                >
+                                                    <User size={10} /> Add
+                                                </button>
+                                                <button
+                                                    onClick={() => { setSelectedQuotationId(q.id); setShowHistoryModal(true); }}
+                                                    className="flex items-center gap-1 bg-gray-500 text-white px-2 py-0.5 rounded text-[10px] w-full justify-center hover:bg-gray-600"
+                                                >
+                                                    <History size={10} /> History
+                                                </button>
                                             </td>
                                             <td className="px-4 py-2 border-r"></td>
                                             <td className="px-4 py-2 border-r text-sky-600 cursor-pointer hover:underline font-medium" onClick={() => navigate(`/sales/rental-quotations/${q.id}`)}>{q.quotationNumber}</td>
@@ -251,7 +288,23 @@ const RentalQuotation = () => {
                     </div>
                 </div>
             </div>
-        </div>
+
+
+
+            {/* Modals */}
+            <FollowUpModal
+                isOpen={showFollowUpModal}
+                onClose={() => setShowFollowUpModal(false)}
+                rentalQuotationId={selectedQuotationId}
+                onSuccess={fetchQuotations} // Refresh list to update status if changed
+            />
+
+            <FollowUpHistoryModal
+                isOpen={showHistoryModal}
+                onClose={() => setShowHistoryModal(false)}
+                rentalQuotationId={selectedQuotationId}
+            />
+        </div >
     );
 };
 

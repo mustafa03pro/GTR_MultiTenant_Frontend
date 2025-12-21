@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import axios from 'axios';
 import { Save, X, Plus, Trash2, ArrowLeft, Paperclip, Upload, Loader2 } from 'lucide-react';
 
@@ -11,7 +11,12 @@ const RentalQuotationForm = () => {
     const isEditMode = !!id;
 
     const [loading, setLoading] = useState(false);
+    const [searchParams] = useSearchParams();
+    const cloneId = searchParams.get('cloneId');
+
     const [fetchingData, setFetchingData] = useState(true);
+
+
 
     // Dropdown Data
     const [customers, setCustomers] = useState([]);
@@ -32,7 +37,7 @@ const RentalQuotationForm = () => {
         priceBasis: '',
         dearSir: '',
         salespersonId: '',
-        quotationType: 'WITH_DISCOUNT', // Default enum
+        quotationType: 'WITH_DISCOUNT_AT_ORDER_LEVEL', // Default enum
         rentalDurationDays: 1, // Default 1 day
         totalDiscount: 0,
         otherCharges: 0,
@@ -47,7 +52,7 @@ const RentalQuotationForm = () => {
     });
 
     const [items, setItems] = useState([
-        { crmProductId: '', itemCode: '', itemName: '', description: '', quantity: 1, rentalValue: 0, taxPercentage: 0, taxValue: 0, amount: 0, isTaxExempt: false }
+        { crmProductId: '', itemCode: '', itemName: '', description: '', quantity: 1, rentalValue: 0, discount: 0, taxPercentage: 0, taxValue: 0, amount: 0, isTaxExempt: false }
     ]);
 
     const [attachments, setAttachments] = useState([]);
@@ -93,26 +98,28 @@ const RentalQuotationForm = () => {
         fetchData();
     }, []);
 
-    // Fetch Existing Data for Edit
+    // Fetch Data for Edit or Clone
     useEffect(() => {
-        if (isEditMode && !fetchingData) {
+        if ((isEditMode || cloneId) && !fetchingData) {
             const fetchQuotation = async () => {
                 try {
-                    const response = await axios.get(`${API_URL}/sales/rental-quotations/${id}`, authHeaders);
+                    const targetId = isEditMode ? id : cloneId;
+                    const response = await axios.get(`${API_URL}/sales/rental-quotations/${targetId}`, authHeaders);
                     const data = response.data;
+
                     setFormData({
-                        quotationDate: data.quotationDate,
+                        quotationDate: isEditMode ? data.quotationDate : new Date().toISOString().split('T')[0], // Reset date for clone
                         customerId: data.customerId,
-                        quotationNumber: data.quotationNumber,
+                        quotationNumber: isEditMode ? data.quotationNumber : '', // Clear number for clone
                         reference: data.reference,
-                        expiryDate: data.expiryDate,
+                        expiryDate: isEditMode ? data.expiryDate : '',
                         deliveryLead: data.deliveryLead,
                         validity: data.validity,
                         paymentTerms: data.paymentTerms,
                         priceBasis: data.priceBasis,
                         dearSir: data.dearSir,
                         salespersonId: data.salespersonId,
-                        quotationType: data.quotationType || 'STANDARD',
+                        quotationType: data.quotationType || 'WITH_DISCOUNT_AT_ORDER_LEVEL',
                         rentalDurationDays: data.rentalDurationDays || 1,
                         totalDiscount: data.totalDiscount || 0,
                         otherCharges: data.otherCharges || 0,
@@ -121,7 +128,7 @@ const RentalQuotationForm = () => {
                         manufacture: data.manufacture,
                         remarks: data.remarks,
                         emailTo: data.emailTo,
-                        status: data.status,
+                        status: isEditMode ? data.status : 'DRAFT', // Reset status for clone
                         template: data.template
                     });
 
@@ -139,21 +146,38 @@ const RentalQuotationForm = () => {
                         }
                         return {
                             ...item,
-                            crmProductId: item.crmProductId,
+                            crmProductId: item.crmProductId || '',
+                            itemCode: item.itemCode,
+                            itemName: item.itemName,
+                            description: item.description,
                             categoryId: item.categoryId || '',
                             subcategoryId: item.subcategoryId || '',
+                            quantity: item.quantity,
+                            rentalValue: item.rentalValue,
+                            taxPercentage: item.taxPercentage,
+                            taxValue: item.taxValue,
+                            amount: item.amount,
+                            isTaxExempt: item.isTaxExempt || false,
                             availableSubcategories
                         };
                     }));
+
                     setItems(mappedItems);
-                    setExistingAttachments(data.attachments || []);
+
+                    if (isEditMode && data.attachments) {
+                        setExistingAttachments(data.attachments);
+                    }
+                    // For clone, we typically don't clone attachments unless requested, let's skip for now to avoid complexity or file reference issues
+
                 } catch (err) {
-                    console.error("Failed to fetch quotation", err);
+                    console.error("Failed to fetch quotation details", err);
+                    alert("Failed to load quotation details");
                 }
             };
             fetchQuotation();
         }
-    }, [isEditMode, id, authHeaders, fetchingData]);
+    }, [id, cloneId, isEditMode, fetchingData, authHeaders]);
+
 
     // Calculations
     useEffect(() => {
@@ -163,7 +187,12 @@ const RentalQuotationForm = () => {
         const updatedItems = items.map(item => {
             const qty = parseFloat(item.quantity) || 0;
             const rate = parseFloat(item.rentalValue) || 0;
-            const itemAmount = qty * rate;
+            const disc = parseFloat(item.discount) || 0;
+
+            let itemAmount = qty * rate;
+            if (formData.quotationType === 'WITH_DISCOUNT_AT_ITEM_LEVEL') {
+                itemAmount -= disc;
+            }
 
             let taxVal = 0;
             if (!item.isTaxExempt) {
@@ -177,8 +206,19 @@ const RentalQuotationForm = () => {
             return { ...item, amount: itemAmount, taxValue: taxVal };
         });
 
-        const discount = parseFloat(formData.totalDiscount) || 0;
-        const grossTotal = Math.max(0, subTotalPerDay - discount);
+        let grossTotal = subTotalPerDay;
+        // Global Discount Logic
+        let discount = 0;
+        if (formData.quotationType === 'WITH_DISCOUNT_AT_ORDER_LEVEL') {
+            discount = parseFloat(formData.totalDiscount) || 0;
+            grossTotal = Math.max(0, subTotalPerDay - discount);
+        } else if (formData.quotationType === 'WITH_DISCOUNT_AT_ITEM_LEVEL' || formData.quotationType === 'WITHOUT_DISCOUNT') {
+            // For item level, discounts are already subtracted from item amounts (subTotalPerDay reflects net of item discounts)
+            // So gross total is just subTotalPerDay (which is sum of item amounts)
+            // We don't apply global discount.
+            grossTotal = subTotalPerDay;
+        }
+
         const days = parseFloat(formData.rentalDurationDays) || 1;
 
         const totalRentalPrice = grossTotal * days;
@@ -196,7 +236,7 @@ const RentalQuotationForm = () => {
             netTotal
         });
 
-    }, [items, formData.totalDiscount, formData.rentalDurationDays, formData.otherCharges]);
+    }, [items, formData.totalDiscount, formData.rentalDurationDays, formData.otherCharges, formData.quotationType]);
 
 
     const handleInputChange = (e) => {
@@ -209,14 +249,37 @@ const RentalQuotationForm = () => {
                 const customer = customers.find(c => c.id === parseInt(value));
                 if (customer) {
                     updates.paymentTerms = customer.paymentTerms || '';
-                    updates.priceBasis = customer.priceCategory || ''; // Mapping priceCategory to priceBasis
+                    updates.priceBasis = customer.priceCategory || '';
                     updates.dearSir = customer.primaryContactPerson || customer.primaryFirstName || '';
                     updates.contactNumber = customer.mobile || customer.contactPhone || '';
-                    // updates.deliveryLead = customer.deliveryType || ''; // Optional: map if needed
                 }
             }
+
+            // Reset discounts if type changes
+            if (name === 'quotationType') {
+                // If switching away from item level, reset item discounts
+                if (value !== 'WITH_DISCOUNT_AT_ITEM_LEVEL') {
+                    // We need to update items state, which is separate. 
+                    // Since setItems is separate, we'll do it in a useEffect or handle it here by modifying items directly if we could, 
+                    // but we can't inside setFormData updater.
+                    // So we must handle it outside this callback or triggering a side effect.
+                    // Better approach: Handle type change in a dedicated handler or effect, or just let the user manually clear it.
+                    // But for good UX, let's auto-clear.
+                }
+
+                // If switching away from order level, reset global discount
+                if (value !== 'WITH_DISCOUNT_AT_ORDER_LEVEL') {
+                    updates.totalDiscount = 0;
+                }
+            }
+
             return updates;
         });
+
+        // Handle Item Discount Reset Side Effect
+        if (name === 'quotationType' && value !== 'WITH_DISCOUNT_AT_ITEM_LEVEL') {
+            setItems(prevItems => prevItems.map(item => ({ ...item, discount: 0 })));
+        }
     };
 
     const handleItemChange = (index, field, value) => {
@@ -256,7 +319,7 @@ const RentalQuotationForm = () => {
     };
 
     const addItem = () => {
-        setItems([...items, { crmProductId: '', itemCode: '', itemName: '', description: '', quantity: 1, rentalValue: 0, taxPercentage: 5, taxValue: 0, amount: 0, isTaxExempt: false, categoryId: '', subcategoryId: '', availableSubcategories: [] }]);
+        setItems([...items, { crmProductId: '', itemCode: '', itemName: '', description: '', quantity: 1, rentalValue: 0, discount: 0, taxPercentage: 5, taxValue: 0, amount: 0, isTaxExempt: false, categoryId: '', subcategoryId: '', availableSubcategories: [] }]);
     };
 
     const removeItem = (index) => {
@@ -278,8 +341,14 @@ const RentalQuotationForm = () => {
             items: items.map(item => {
                 const quantity = parseFloat(item.quantity) || 0;
                 const rentalValue = parseFloat(item.rentalValue) || 0;
+                const discount = parseFloat(item.discount) || 0;
                 const taxPercentage = parseFloat(item.taxPercentage) || 0;
-                const amount = quantity * rentalValue;
+
+                let amount = quantity * rentalValue;
+                if (formData.quotationType === 'WITH_DISCOUNT_AT_ITEM_LEVEL') {
+                    amount = amount - discount;
+                }
+
                 const taxValue = !item.isTaxExempt ? (amount * taxPercentage / 100) : 0;
 
                 return {
@@ -428,7 +497,8 @@ const RentalQuotationForm = () => {
                         <h3 className="font-bold text-gray-700">Items & Description</h3>
                         <div className="flex items-center gap-2">
                             <select name="quotationType" value={formData.quotationType} onChange={handleInputChange} className="border border-gray-300 rounded px-2 py-1 text-sm">
-                                <option value="WITH_DISCOUNT">With Discount</option>
+                                <option value="WITH_DISCOUNT_AT_ORDER_LEVEL">With Discount At Order Level</option>
+                                <option value="WITH_DISCOUNT_AT_ITEM_LEVEL">With Discount At Item Level</option>
                                 <option value="WITHOUT_DISCOUNT">Without Discount</option>
                             </select>
                         </div>
@@ -444,6 +514,7 @@ const RentalQuotationForm = () => {
                                     <th className="px-2 py-2 w-32">Subcategory</th>
                                     <th className="px-2 py-2 w-24">Quantity</th>
                                     <th className="px-2 py-2 w-32">Rental Value</th>
+                                    {formData.quotationType === 'WITH_DISCOUNT_AT_ITEM_LEVEL' && <th className="px-2 py-2 w-24">Discount</th>}
                                     <th className="px-2 py-2 w-32">Amount</th>
                                     <th className="px-2 py-2 w-32">Tax (VAT)</th>
                                     <th className="px-2 py-2 w-16 text-center">Action</th>
@@ -519,8 +590,26 @@ const RentalQuotationForm = () => {
                                                 className="w-full border border-gray-300 rounded px-2 py-1 text-right focus:border-blue-500 outline-none"
                                             />
                                         </td>
+                                        {formData.quotationType === 'WITH_DISCOUNT_AT_ITEM_LEVEL' && (
+                                            <td className="px-2 py-3">
+                                                <input
+                                                    type="number"
+                                                    min="0"
+                                                    step="0.01"
+                                                    value={item.discount}
+                                                    onChange={(e) => handleItemChange(index, 'discount', e.target.value)}
+                                                    className="w-full border border-gray-300 rounded px-2 py-1 text-right focus:border-blue-500 outline-none"
+                                                />
+                                            </td>
+                                        )}
                                         <td className="px-2 py-3 text-right font-medium text-gray-700">
-                                            {((parseFloat(item.quantity) || 0) * (parseFloat(item.rentalValue) || 0)).toFixed(2)}
+                                            {(() => {
+                                                let amt = (parseFloat(item.quantity) || 0) * (parseFloat(item.rentalValue) || 0);
+                                                if (formData.quotationType === 'WITH_DISCOUNT_AT_ITEM_LEVEL') {
+                                                    amt -= (parseFloat(item.discount) || 0);
+                                                }
+                                                return Math.max(0, amt).toFixed(2);
+                                            })()}
                                         </td>
                                         <td className="px-2 py-3 space-y-1">
                                             <div className="flex items-center gap-1">
@@ -571,6 +660,8 @@ const RentalQuotationForm = () => {
                                     value={formData.totalDiscount}
                                     onChange={handleInputChange}
                                     className="w-32 border border-gray-300 rounded px-2 py-1 text-right"
+                                    disabled={formData.quotationType !== 'WITH_DISCOUNT_AT_ORDER_LEVEL'}
+                                    title={formData.quotationType !== 'WITH_DISCOUNT_AT_ORDER_LEVEL' ? "Change quotation type to enable" : ""}
                                 />
                             </div>
                             <div className="flex justify-between items-center text-sm font-semibold border-t pt-2">

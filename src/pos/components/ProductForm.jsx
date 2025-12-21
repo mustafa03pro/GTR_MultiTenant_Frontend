@@ -16,13 +16,25 @@ const constructImageUrl = (relativeUrl) => {
 };
 
 const ProductForm = ({ product, onSave, onCancel, isSubmitting, onGenerateBarcode }) => {
-    const [formData, setFormData] = useState(product || { name: '', sku: '', description: '', categoryId: null, active: true, variants: [{ sku: '', barcode: '', priceCents: 0, costCents: 0, attributes: {}, imageUrl: null, imageFile: null, taxRateId: null, active: true }] });
+    const [formData, setFormData] = useState(product || { name: '', sku: '', description: '', categoryId: null, active: true, variants: [{ sku: '', barcode: '', price: 0, cost: 0, attributes: {}, imageUrl: null, imageFile: null, taxRateId: null, active: true }] });
     const [taxRates, setTaxRates] = useState([]);
     const [categories, setCategories] = useState([]);
 
     useEffect(() => {
-        const initialVariants = [{ sku: '', barcode: '', priceCents: 0, costCents: 0, attributes: {}, imageUrl: null, imageFile: null, taxRateId: null, active: true }];
-        setFormData(product ? { ...product, variants: product.variants.map(v => ({ ...v, imageFile: null })) } : { name: '', sku: '', description: '', categoryId: null, active: true, variants: initialVariants });
+        const initialVariants = [{ sku: '', barcode: '', price: 0, cost: 0, attributes: {}, imageUrl: null, imageFile: null, taxRateId: null, active: true }];
+        if (product) {
+            setFormData({
+                ...product,
+                variants: product.variants.map(v => ({
+                    ...v,
+                    imageFile: null,
+                    price: v.priceCents ? v.priceCents / 100 : 0,
+                    cost: v.costCents ? v.costCents / 100 : 0
+                }))
+            });
+        } else {
+            setFormData({ name: '', sku: '', description: '', categoryId: null, active: true, variants: initialVariants });
+        }
     }, [product]);
 
     useEffect(() => {
@@ -61,7 +73,7 @@ const ProductForm = ({ product, onSave, onCancel, isSubmitting, onGenerateBarcod
         const newVariants = [...formData.variants];
         let newAttributes = { ...newVariants[variantIndex].attributes };
         const oldKey = Object.keys(newAttributes)[attrIndex];
-    
+
         if (field === 'key') {
             const oldValue = newAttributes[oldKey];
             const { [oldKey]: _, ...rest } = newAttributes;
@@ -118,7 +130,7 @@ const ProductForm = ({ product, onSave, onCancel, isSubmitting, onGenerateBarcod
     };
 
     const addVariant = () => {
-        setFormData(prev => ({ ...prev, variants: [...prev.variants, { sku: '', barcode: '', priceCents: 0, costCents: 0, attributes: {}, imageUrl: '', taxRateId: null, active: true }] }));
+        setFormData(prev => ({ ...prev, variants: [...prev.variants, { sku: '', barcode: '', price: 0, cost: 0, attributes: {}, imageUrl: '', taxRateId: null, active: true }] }));
     };
 
     const removeVariant = (index) => {
@@ -130,11 +142,21 @@ const ProductForm = ({ product, onSave, onCancel, isSubmitting, onGenerateBarcod
         const submitProduct = async () => {
             const uploadedVariants = await Promise.all(
                 (formData.variants || []).map(async (variant) => {
-                    if (variant.imageFile) {
-                        const imageUrl = await handleUpload(variant.imageFile);
-                        return { ...variant, imageUrl: imageUrl };
+                    let updatedVariant = { ...variant };
+                    if (updatedVariant.imageFile) {
+                        const imageUrl = await handleUpload(updatedVariant.imageFile);
+                        updatedVariant.imageUrl = imageUrl;
                     }
-                    return variant;
+
+                    // Convert dollars back to cents
+                    updatedVariant.priceCents = Math.round((parseFloat(updatedVariant.price) || 0) * 100);
+                    updatedVariant.costCents = Math.round((parseFloat(updatedVariant.cost) || 0) * 100);
+
+                    // Remove temporary fields if needed, or backend can ignore them
+                    // delete updatedVariant.price;
+                    // delete updatedVariant.cost;
+
+                    return updatedVariant;
                 })
             );
             const productData = { ...formData, categoryId: formData.categoryId === '' ? null : formData.categoryId, variants: uploadedVariants };
@@ -188,8 +210,8 @@ const ProductForm = ({ product, onSave, onCancel, isSubmitting, onGenerateBarcod
                             <div className="grid grid-cols-2 gap-4">
                                 <div><label className="label text-xs">SKU</label><input name="sku" value={variant.sku} onChange={(e) => handleVariantChange(index, e)} className="input" /></div>
                                 <div><label className="label text-xs">Barcode</label><input name="barcode" value={variant.barcode || ''} onChange={(e) => handleVariantChange(index, e)} className="input" /></div>
-                                <div><label className="label text-xs">Price (in cents)</label><input name="priceCents" type="number" value={variant.priceCents} onChange={(e) => handleVariantChange(index, e)} className="input" /></div>
-                                <div><label className="label text-xs">Cost (in cents)</label><input name="costCents" type="number" value={variant.costCents} onChange={(e) => handleVariantChange(index, e)} className="input" /></div>
+                                <div><label className="label text-xs">Price</label><input name="price" type="number" step="0.01" value={variant.price} onChange={(e) => handleVariantChange(index, e)} className="input" /></div>
+                                <div><label className="label text-xs">Cost</label><input name="cost" type="number" step="0.01" value={variant.cost} onChange={(e) => handleVariantChange(index, e)} className="input" /></div>
                                 <div>
                                     <label className="label text-xs">Image</label>
                                     <input type="file" accept="image/*" onChange={(e) => handleVariantImageChange(index, e)} className="input" />

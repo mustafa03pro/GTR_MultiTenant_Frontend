@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import axios from 'axios';
 import { ArrowLeft, Plus, Trash2, Save, Upload, Loader2, Paperclip } from 'lucide-react';
 
@@ -8,6 +8,9 @@ const API_URL = import.meta.env.VITE_API_BASE_URL;
 const ProformaInvoiceForm = () => {
     const { id } = useParams();
     const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
+    const quotationId = searchParams.get('quotationId');
+    const salesOrderId = searchParams.get('salesOrderId');
     const isEditMode = !!id;
 
     const [loading, setLoading] = useState(false);
@@ -134,6 +137,91 @@ const ProformaInvoiceForm = () => {
                         setItems([]);
                     }
                     setExistingAttachments(data.attachments || []);
+                    setExistingAttachments(data.attachments || []);
+                } else if (quotationId) {
+                    // Populate from Quotation
+                    const quotRes = await axios.get(`${API_URL}/sales/quotations/${quotationId}`, { headers });
+                    const data = quotRes.data;
+
+                    setFormData(prev => ({
+                        ...prev,
+                        customerId: data.customerId || '',
+                        poNumber: '',
+                        reference: data.quotationNumber, // Use Qtn No as reference
+                        salespersonId: data.salespersonId || '',
+                        termsAndConditions: data.termsAndConditions || '',
+                        notes: data.notes || '',
+                        totalDiscount: data.totalDiscount || 0,
+                        otherCharges: data.otherCharges || 0
+                    }));
+
+                    // Set addresses
+                    const cust = (custRes.data.content || custRes.data || []).find(c => c.id === data.customerId);
+                    if (cust) {
+                        setBillingAddress(formatAddress(cust.billingAddress));
+                        setShippingAddress(formatAddress(cust.shippingAddress));
+                    }
+
+                    if (data.items) {
+                        const mappedItems = data.items.map(item => ({
+                            crmProductId: item.crmProductId || '',
+                            itemCode: item.itemCode || '',
+                            itemName: item.itemName || '',
+                            description: item.description || '',
+                            categoryId: item.categoryId || '',
+                            subcategoryId: item.subcategoryId || '',
+                            availableSubcategories: [],
+                            quantity: item.quantity || 1,
+                            rate: item.rate || 0,
+                            amount: item.amount || 0,
+                            taxPercentage: item.taxPercentage || 0,
+                            taxValue: item.taxValue || 0,
+                            isTaxExempt: item.isTaxExempt || false
+                        }));
+                        setItems(mappedItems);
+                    }
+                } else if (salesOrderId) {
+                    // Populate from Sales Order
+                    const orderRes = await axios.get(`${API_URL}/sales/orders/${salesOrderId}`, { headers });
+                    const data = orderRes.data;
+
+                    setFormData(prev => ({
+                        ...prev,
+                        customerId: data.customerId || '',
+                        poNumber: data.poNumber || '', // Check if SO has PO number
+                        reference: data.salesOrderNumber, // Use SO No as reference
+                        salespersonId: data.salespersonId || '',
+                        termsAndConditions: data.termsAndConditions || '',
+                        notes: data.notes || '',
+                        totalDiscount: data.totalDiscount || 0,
+                        otherCharges: data.otherCharges || 0
+                    }));
+
+                    // Set addresses
+                    const cust = (custRes.data.content || custRes.data || []).find(c => c.id === data.customerId);
+                    if (cust) {
+                        setBillingAddress(formatAddress(cust.billingAddress));
+                        setShippingAddress(formatAddress(cust.shippingAddress));
+                    }
+
+                    if (data.items) {
+                        const mappedItems = data.items.map(item => ({
+                            crmProductId: item.crmProductId || '',
+                            itemCode: item.itemCode || '',
+                            itemName: item.itemName || '',
+                            description: item.description || '',
+                            categoryId: item.categoryId || '',
+                            subcategoryId: item.subcategoryId || '',
+                            availableSubcategories: [],
+                            quantity: item.quantity || 1,
+                            rate: item.rate || 0,
+                            amount: item.amount || 0,
+                            taxPercentage: item.taxPercentage || 0,
+                            taxValue: item.taxValue || 0,
+                            isTaxExempt: item.isTaxExempt || false
+                        }));
+                        setItems(mappedItems);
+                    }
                 }
             } catch (err) {
                 console.error("Failed to load data", err);
@@ -143,7 +231,7 @@ const ProformaInvoiceForm = () => {
             }
         };
         loadDependencies();
-    }, [id, isEditMode]);
+    }, [id, isEditMode, quotationId, salesOrderId]);
 
     const formatAddress = (addr) => {
         if (!addr) return '';
@@ -223,7 +311,7 @@ const ProformaInvoiceForm = () => {
         // Actually DTO has taxPercentage.
         let tax = 0;
         if (!newItems[index].isTaxExempt) {
-            const taxPct = Number(newItems[index].taxPercentage) || 5; // Default 5% VAT
+            const taxPct = Number(newItems[index].taxPercentage) || 0; // Don't force 5%, user might want 0
             tax = (amount * taxPct) / 100;
             newItems[index].taxPercentage = taxPct;
         } else {
@@ -307,6 +395,35 @@ const ProformaInvoiceForm = () => {
                 await axios.put(`${API_URL}/sales/proforma-invoices/${id}`, payload, config);
             } else {
                 await axios.post(`${API_URL}/sales/proforma-invoices`, payload, config);
+
+                // Update Quotation status if created from Quotation
+                if (quotationId) {
+                    try {
+                        await axios.patch(`${API_URL}/sales/quotations/${quotationId}/status`, null, {
+                            params: {
+                                status: 'PROFORMA_INVOICED'
+                            },
+                            headers: { Authorization: `Bearer ${token}` }
+                        });
+                        console.log("Quotation status updated automatically");
+                    } catch (statusErr) {
+                        console.warn("Failed to update quotation status automatically", statusErr);
+                    }
+                }
+
+                // Update Sales Order status if created from Sales Order
+                if (salesOrderId) {
+                    try {
+                        await axios.patch(`${API_URL}/sales/orders/${salesOrderId}/status`, null, {
+                            params: {
+                                status: 'PROFORMA_INVOICED'
+                            },
+                            headers: { Authorization: `Bearer ${token}` }
+                        });
+                    } catch (statusErr) {
+                        console.warn("Failed to update sales order status automatically", statusErr);
+                    }
+                }
             }
             navigate('/sales/proforma-invoices');
         } catch (err) {

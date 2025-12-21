@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import { Edit, FileText, Printer, Mail, Paperclip, ChevronDown, ArrowLeft, Loader2 } from 'lucide-react';
+import { Edit, FileText, Printer, Mail, Paperclip, ChevronDown, ArrowLeft, Loader2, Trash2 } from 'lucide-react';
 
 const API_URL = import.meta.env.VITE_API_BASE_URL;
 
@@ -71,9 +71,92 @@ const RentalQuotationView = () => {
         };
     }, []);
 
+    const [isLetterhead, setIsLetterhead] = useState(false);
+    const [showAttachments, setShowAttachments] = useState(false);
+
     const numberToWords = (amount) => {
-        // Placeholder for number to words conversion
-        return `${amount} Dirhams`;
+        const units = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine'];
+        const teens = ['Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
+        const tens = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
+        const scales = ['', 'Thousand', 'Million', 'Billion', 'Trillion'];
+
+        const convertChunk = (num) => {
+            let str = '';
+            if (num >= 100) {
+                str += units[Math.floor(num / 100)] + ' Hundred ';
+                num %= 100;
+            }
+            if (num >= 20) {
+                str += tens[Math.floor(num / 10)] + ' ';
+                num %= 10;
+            }
+            if (num >= 10) {
+                str += teens[num - 10] + ' ';
+                num = 0;
+            }
+            if (num > 0) {
+                str += units[num] + ' ';
+            }
+            return str;
+        };
+
+        if (amount === 0) return 'Zero Dirhams';
+
+        let num = Math.floor(amount);
+        let decimal = Math.round((amount - num) * 100);
+        let words = '';
+        let i = 0;
+
+        do {
+            let chunk = num % 1000;
+            if (chunk !== 0) {
+                words = convertChunk(chunk) + scales[i] + ' ' + words;
+            }
+            num = Math.floor(num / 1000);
+            i++;
+        } while (num > 0);
+
+        words = words.trim();
+        if (words) {
+            words += ' Dirhams';
+        }
+
+        if (decimal > 0) {
+            words += ` and ${decimal}/100 Fils`;
+        }
+
+        return words;
+    };
+
+    const handlePrint = () => {
+        window.print();
+    };
+
+    const handlePrintLetterhead = () => {
+        setIsLetterhead(true);
+        setTimeout(() => {
+            window.print();
+            setIsLetterhead(false);
+        }, 500);
+    };
+
+    const handleWhatsApp = () => {
+        const text = `Hi ${quotation.customerName}, Here is your Rental Quotation ${quotation.quotationNumber}. Net Total: AED ${quotation.netTotal}`;
+        window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
+    };
+
+    const handleEmail = () => {
+        const subject = `Rental Quotation ${quotation.quotationNumber}`;
+        const body = `Hi ${quotation.customerName},\n\nPlease find attached Rental Quotation ${quotation.quotationNumber}.\n\nNet Total: AED ${quotation.netTotal}\n\nRegards,\n${company?.companyName || ''}`;
+        window.location.href = `mailto:${quotation.email || ''}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    };
+
+    const handleAttachments = () => {
+        if (quotation.attachments && quotation.attachments.length > 0) {
+            setShowAttachments(true);
+        } else {
+            alert("No attachments found.");
+        }
     };
 
     const handleDownloadPdf = async () => {
@@ -134,11 +217,11 @@ const RentalQuotationView = () => {
             <div className="px-6 py-3 flex flex-wrap gap-2 items-center bg-white border-b print:hidden">
                 <button onClick={() => navigate(`/sales/rental-quotations/edit/${id}`)} className="p-2 bg-[#5bc0de] text-white rounded hover:bg-[#46b8da]" title="Edit"><Edit size={16} /></button>
                 <button onClick={handleDownloadPdf} className="p-2 bg-[#d9534f] text-white rounded hover:bg-[#d43f3a]" title="PDF"><FileText size={16} /></button>
-                <button className="p-2 bg-[#5cb85c] text-white rounded hover:bg-[#4cae4c]" title="WhatsApp"><span className="font-bold text-xs">WA</span></button>
-                <button onClick={() => window.print()} className="p-2 bg-[#0275d8] text-white rounded hover:bg-[#025aa5]" title="Print"><Printer size={16} /></button>
-                <button className="px-3 py-1.5 bg-[#0275d8] text-white rounded text-sm hover:bg-[#025aa5] flex items-center gap-1"><Printer size={14} /> Print On Letterhead</button>
-                <button className="p-2 bg-[#f0ad4e] text-white rounded hover:bg-[#eea236]" title="Email"><Mail size={16} /></button>
-                <button className="p-2 bg-[#aeb6bf] text-white rounded hover:bg-[#8e99a4]" title="Attachments"><Paperclip size={16} /></button>
+                <button onClick={handleWhatsApp} className="p-2 bg-[#5cb85c] text-white rounded hover:bg-[#4cae4c]" title="WhatsApp"><span className="font-bold text-xs">WA</span></button>
+                <button onClick={handlePrint} className="p-2 bg-[#0275d8] text-white rounded hover:bg-[#025aa5]" title="Print"><Printer size={16} /></button>
+                <button onClick={handlePrintLetterhead} className="px-3 py-1.5 bg-[#0275d8] text-white rounded text-sm hover:bg-[#025aa5] flex items-center gap-1"><Printer size={14} /> Print On Letterhead</button>
+                <button onClick={handleEmail} className="p-2 bg-[#f0ad4e] text-white rounded hover:bg-[#eea236]" title="Email"><Mail size={16} /></button>
+                <button onClick={handleAttachments} className="p-2 bg-[#aeb6bf] text-white rounded hover:bg-[#8e99a4]" title="Attachments"><Paperclip size={16} /></button>
 
                 <div className="relative" ref={convertMenuRef}>
                     <button onClick={() => setShowConvertMenu(!showConvertMenu)} className="px-3 py-1.5 bg-primary text-white rounded text-sm hover:bg-violet-800 flex items-center gap-1">
@@ -147,7 +230,7 @@ const RentalQuotationView = () => {
                     {showConvertMenu && (
                         <div className="absolute top-full left-0 mt-1 w-48 bg-white border rounded shadow-lg z-10 text-sm">
                             <button className="block w-full text-left px-4 py-2 hover:bg-gray-100 text-[#0099cc]" onClick={() => navigate(`/sales/rental-sales-orders/new?quotationId=${id}`)}>Convert to Rental Order</button>
-                            <button className="block w-full text-left px-4 py-2 hover:bg-gray-100 text-[#0099cc]" onClick={() => alert('Convert to Rental Invoice feature coming soon')}>Convert to Rental Invoice</button>
+                            <button className="block w-full text-left px-4 py-2 hover:bg-gray-100 text-[#0099cc]" onClick={() => navigate(`/sales/rental-invoices/new?quotationId=${id}`, { state: { quotationId: id } })}>Convert to Rental Invoice</button>
                         </div>
                     )}
                 </div>
@@ -157,10 +240,28 @@ const RentalQuotationView = () => {
                         More <ChevronDown size={14} />
                     </button>
                     {showMoreMenu && (
-                        <div className="absolute top-full left-0 mt-1 w-40 bg-white border rounded shadow-lg z-10 text-sm">
+                        <div className="absolute top-full left-0 mt-1 w-48 bg-white border rounded shadow-lg z-10 text-sm">
+                            <button className="block w-full text-left px-4 py-2 hover:bg-gray-100 text-gray-700" onClick={() => navigate(`/sales/rental-quotations/new?cloneId=${id}`)}>Clone</button>
+
+                            {quotation.status !== 'CANCELLED' && (
+                                <button className="block w-full text-left px-4 py-2 hover:bg-gray-100 text-orange-600" onClick={() => {
+                                    if (window.confirm('Are you sure you want to cancel this quotation?')) {
+                                        axios.patch(`${API_URL}/sales/rental-quotations/${id}/status`, null, {
+                                            params: {
+                                                status: 'CANCELLED'
+                                            },
+                                            headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+                                        })
+                                            .then(() => {
+                                                setQuotation(prev => ({ ...prev, status: 'CANCELLED' }));
+                                                setShowMoreMenu(false);
+                                            })
+                                            .catch(err => alert("Failed to cancel quotation"));
+                                    }
+                                }}>Mark as Canceled</button>
+                            )}
                             <button className="block w-full text-left px-4 py-2 hover:bg-gray-100 text-red-600" onClick={() => {
                                 if (window.confirm('Delete this quotation?')) {
-                                    // Delete logic could simply be calling API and redirecting
                                     axios.delete(`${API_URL}/sales/rental-quotations/${id}`, { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } })
                                         .then(() => navigate('/sales/rental-quotations'))
                                         .catch(err => alert("Failed to delete"));
@@ -170,6 +271,26 @@ const RentalQuotationView = () => {
                     )}
                 </div>
             </div>
+
+            {/* Attachments Modal */}
+            {showAttachments && (
+                <div className="fixed inset-0 bg-black/50 z-50 flex justify-center items-center">
+                    <div className="bg-white p-6 rounded shadow-lg w-96 max-h-[80vh] overflow-y-auto relative">
+                        <button onClick={() => setShowAttachments(false)} className="absolute top-2 right-2 text-gray-500 hover:text-gray-700"><Trash2 size={16} className="rotate-45" /></button>
+                        <h3 className="text-lg font-bold mb-4">Attachments</h3>
+                        <div className="space-y-2">
+                            {quotation.attachments && quotation.attachments.map((file, idx) => (
+                                <a key={idx} href={`${API_URL}/${file}`} target="_blank" rel="noopener noreferrer" className="block p-2 bg-gray-50 hover:bg-blue-50 text-blue-600 truncate border rounded">
+                                    {`Attachment ${idx + 1}`}
+                                </a>
+                            ))}
+                        </div>
+                        <div className="mt-4 text-right">
+                            <button onClick={() => setShowAttachments(false)} className="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300 text-sm">Close</button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Status Bar */}
             <div className="px-6 py-2 bg-[#f9f9f9] border-b text-xs text-gray-500 flex flex-col gap-1 print:hidden">
@@ -191,10 +312,12 @@ const RentalQuotationView = () => {
                 <div className="w-full bg-white border shadow-sm p-8 relative text-sm print:w-full print:border-none print:shadow-none print:p-0">
 
                     {/* Company Header */}
-                    <div className="text-center mb-8">
-                        <h2 className="text-xl font-bold text-gray-800">{company?.companyName || 'Your Company Name'}</h2>
-                        <p className="text-gray-600">{company?.address || 'Address Line 1'}, {company?.city || 'City'} {company?.country || 'Country'} {company?.email || 'email@example.com'}</p>
-                    </div>
+                    {!isLetterhead && (
+                        <div className="text-center mb-8">
+                            <h2 className="text-xl font-bold text-gray-800">{company?.companyName || 'Your Company Name'}</h2>
+                            <p className="text-gray-600">{company?.address || 'Address Line 1'}, {company?.city || 'City'} {company?.country || 'Country'} {company?.email || 'email@example.com'}</p>
+                        </div>
+                    )}
 
                     {/* Quotation Info Header */}
                     <div className="flex justify-between items-start border-t border-b border-gray-300 py-4 mb-6">
@@ -325,7 +448,7 @@ const RentalQuotationView = () => {
 
                 </div>
             </div>
-        </div>
+        </div >
     );
 };
 

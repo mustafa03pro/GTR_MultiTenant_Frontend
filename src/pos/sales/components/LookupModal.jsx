@@ -9,6 +9,7 @@ const TABS = ['All Sales', 'On Delivery', 'Pending', 'Completed'];
 const LookupModal = ({ isOpen, onClose, onResumeSale, onRemoveSale }) => {
     const [activeTab, setActiveTab] = useState(TABS[0]);
     const [isPrinting, setIsPrinting] = useState(null);
+    const [processingId, setProcessingId] = useState(null);
     const [sales, setSales] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
@@ -73,10 +74,18 @@ const LookupModal = ({ isOpen, onClose, onResumeSale, onRemoveSale }) => {
         }
     };
 
-    const handleEdit = (saleId) => {
-        // Placeholder for edit functionality
-        alert(`Edit functionality for sale ID: ${saleId} is not yet implemented.`);
+    const handleAction = async (id, action) => {
+        if (processingId) return;
+        setProcessingId(id);
+        try {
+            await action(id);
+        } catch (error) {
+            console.error("Action failed", error);
+        } finally {
+            setProcessingId(null);
+        }
     };
+
 
     if (!isOpen) return null;
 
@@ -127,10 +136,10 @@ const LookupModal = ({ isOpen, onClose, onResumeSale, onRemoveSale }) => {
                                 {activeTab === 'Pending' && (
                                     <td className="td-cell">
                                         <div className="flex items-center gap-2">
-                                            <button onClick={() => onResumeSale(sale.id)} className="p-1.5 text-slate-500 hover:text-green-600 rounded-full" title="Resume and Pay">
-                                                <CreditCard size={16} />
+                                            <button onClick={() => handleAction(sale.id, onResumeSale)} className="p-1.5 text-slate-500 hover:text-green-600 rounded-full" title="Resume and Pay" disabled={!!processingId}>
+                                                {processingId === sale.id ? <Loader className="animate-spin h-4 w-4" /> : <CreditCard size={16} />}
                                             </button>
-                                            <button onClick={() => onRemoveSale(sale.id)} className="p-1.5 text-slate-500 hover:text-red-600 rounded-full" title="Remove Sale">
+                                            <button onClick={() => handleAction(sale.id, onRemoveSale)} className="p-1.5 text-slate-500 hover:text-red-600 rounded-full" title="Remove Sale" disabled={!!processingId}>
                                                 <Trash2 size={16} />
                                             </button>
                                         </div>
@@ -157,11 +166,10 @@ const LookupModal = ({ isOpen, onClose, onResumeSale, onRemoveSale }) => {
                             <button
                                 key={tab}
                                 onClick={() => setActiveTab(tab)}
-                                className={`whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm transition-colors ${
-                                    activeTab === tab
+                                className={`whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm transition-colors ${activeTab === tab
                                         ? 'border-blue-600 text-blue-600'
                                         : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
-                                }`}
+                                    }`}
                             >
                                 {tab}
                             </button>

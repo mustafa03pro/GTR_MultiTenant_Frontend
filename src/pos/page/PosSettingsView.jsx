@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import axios from 'axios';
-import { Building, Store, Users, Percent, Edit, Trash2, PlusCircle, Loader, Save, X, ClipboardList, Eye, Tag, UploadCloud } from 'lucide-react';
+import { Building, Store, Users, Percent, Edit, Trash2, PlusCircle, Loader, Save, X, ClipboardList, Eye, Tag, UploadCloud, FileText } from 'lucide-react';
+import { constructImageUrl } from '../sales/utils';
+import CompanyInfo from '../../manageCompany/CompanyInfo';
 
 const API_URL = import.meta.env.VITE_API_BASE_URL;
 
@@ -26,7 +28,7 @@ const Modal = ({ isOpen, onClose, title, children }) => {
 const FormField = ({ label, name, value, onChange, type = 'text', required = false, ...props }) => (
     <div>
         <label htmlFor={name} className="block text-sm font-medium text-foreground-muted">{label}</label>
-        <input 
+        <input
             type={type}
             id={name}
             name={name}
@@ -125,13 +127,13 @@ const UserForm = ({ item, onSave, onCancel }) => {
         if (formData.password !== formData.confirmPassword) {
             setFormError("Passwords do not match.");
             return;
-        } 
+        }
         if (!item && !formData.password) {
             setFormError("Password is required for new users.");
             return;
         }
         if (formData.password && formData.password.length < 6) {
-            setFormError("Password must be at least 6 characters long."); 
+            setFormError("Password must be at least 6 characters long.");
             return;
         }
 
@@ -265,8 +267,9 @@ const GeneralSettingsTab = () => {
                     address: res.data.address || '',
                 });
 
+
                 if (res.data.logoImgUrl) {
-                    setLogoUrl(`${res.data.logoImgUrl}`); // Correct URL
+                    setLogoUrl(constructImageUrl(res.data.logoImgUrl)); // Correct URL with constructImageUrl
                     // axios.get(`${API_URL}/pos/tenant/current/logo`, {
                     //     headers: { Authorization: `Bearer ${token}` },
                     //     responseType: 'blob'
@@ -274,7 +277,7 @@ const GeneralSettingsTab = () => {
                     //     const objectUrl = URL.createObjectURL(logoRes.data);
                     //     setLogoUrl(objectUrl);
                     // }).catch(logoErr => console.error("Could not fetch logo image:", logoErr));
-                    
+
                 }
                 console.log(logoUrl)
 
@@ -291,7 +294,7 @@ const GeneralSettingsTab = () => {
 
         try {
             // 1. Upload logo if a new one is selected
-           if (logoFile) {
+            if (logoFile) {
                 const logoFormData = new FormData();
                 logoFormData.append('file', logoFile);
                 const logoUploadResponse = await axios.post(`${API_URL}/pos/tenant/current/logo`, logoFormData, {
@@ -334,18 +337,18 @@ const GeneralSettingsTab = () => {
             <div className="p-4 border rounded-lg bg-slate-50">
                 {isEditing ? (
                     <div className="space-y-4">
-                        <FormField label="Tenant/Company Name" name="name" value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} />
+                        {/* <FormField label="Tenant/Company Name" name="name" value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} /> */}
                         <FormField label="Contact Email" name="contactEmail" type="email" value={formData.contactEmail} onChange={e => setFormData({ ...formData, contactEmail: e.target.value })} />
                         <FormField label="Contact Phone" name="contactPhone" value={formData.contactPhone} onChange={e => setFormData({ ...formData, contactPhone: e.target.value })} />
                         <FormField label="Address" name="address" value={formData.address} onChange={e => setFormData({ ...formData, address: e.target.value })} />
-                        <div>
+                        {/* <div>
                             <label className="block text-sm font-medium text-slate-700">Company Logo</label>
                             <div className="mt-1 flex items-center gap-4">
                                 {logoUrl && !logoFile && <img src={logoUrl} alt="Current Logo" className="h-12 w-12 object-contain rounded-md border bg-white" />}
                                 {logoFile && <img src={URL.createObjectURL(logoFile)} alt="New Logo Preview" className="h-12 w-12 object-contain rounded-md border bg-white" />}
                                 <input type="file" accept="image/*" onChange={handleFileChange} className="text-sm text-slate-500 file:mr-4 file:py-1.5 file:px-3 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" />
                             </div>
-                        </div>
+                        </div> */}
                         <div className="flex justify-end gap-2">
                             <button onClick={() => { setIsEditing(false); setLogoFile(null); }} className="btn-secondary" disabled={isUploading}>Cancel</button>
                             <button onClick={handleSave} className="btn-primary flex items-center gap-2" disabled={isUploading}>
@@ -357,14 +360,14 @@ const GeneralSettingsTab = () => {
                 ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <InfoDisplay label="Tenant ID" value={tenant?.tenantId} />
-                        <InfoDisplay label="Company Name" value={tenant?.name} />
+                        {/* <InfoDisplay label="Company Name" value={tenant?.name} /> */}
                         <InfoDisplay label="Contact Email" value={tenant?.contactEmail} />
                         <InfoDisplay label="Contact Phone" value={tenant?.contactPhone} />
                         <div className="md:col-span-2"><InfoDisplay label="Address" value={tenant?.address} /></div>
-                        <div>
+                        {/* <div>
                             <p className="text-sm text-slate-500">Logo</p>
-                            {logoUrl ? <img src={logoUrl} alt="Logo" className="mt-1 h-16 w-auto object-contain rounded-md border p-1 bg-white"  /> : <p className="text-slate-400">N/A</p>}
-                        </div>
+                            {logoUrl ? <img src={logoUrl} alt="Logo" className="mt-1 h-16 w-auto object-contain rounded-md border p-1 bg-white" /> : <p className="text-slate-400">N/A</p>}
+                        </div> */}
                     </div>
                 )}
             </div>
@@ -389,7 +392,10 @@ const createCrudTab = (config) => () => {
                     const relevantRoles = new Set(['POS_ADMIN', 'POS_MANAGER', 'POS_CASHIER']);
                     fetchedData = res.data.filter(user =>
                         user.roles && user.roles.some(role => relevantRoles.has(role))
-                    );
+                    ).map(user => ({
+                        ...user,
+                        role: user.roles.find(r => relevantRoles.has(r))
+                    }));
                 }
                 setData(fetchedData);
             }).catch(err => console.error(`Error fetching ${config.name}:`, err.message, err.toJSON()))
@@ -410,9 +416,9 @@ const createCrudTab = (config) => () => {
         const isUpdating = itemData.id;
         const url = isUpdating ? `${API_URL}${config.endpoints.update}/${itemData.id}` : `${API_URL}${config.endpoints.create}`;
         const method = isUpdating ? 'put' : 'post';
- 
+
         const dataToSend = { ...itemData };
-         if (config.name === 'pos users') {
+        if (config.name === 'pos users') {
             // Always send roles as an array
             dataToSend.roles = [itemData.role];
             delete dataToSend.role;
@@ -499,19 +505,6 @@ const UserSettingsTab = createCrudTab({
     },
     FormComponent: UserForm,
 });
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 const TaxSettingsTab = createCrudTab({
     name: 'tax rates', singularName: 'Tax Rate', title: 'Manage Tax Rates', addLabel: 'Add Tax Rate',
@@ -602,7 +595,8 @@ const AuditEventLogTab = () => {
 
 // --- Main Component ---
 const tabs = [
-    { name: 'General', icon: Building, component: GeneralSettingsTab },
+    { name: 'Tenant', icon: Building, component: GeneralSettingsTab },
+    { name: 'Company Info', icon: FileText, component: CompanyInfo, requiredRoles: ['POS_ADMIN'] },
     { name: 'Stores', icon: Store, component: StoreSettingsTab },
     { name: 'Users', icon: Users, component: UserSettingsTab },
     { name: 'Taxes', icon: Percent, component: TaxSettingsTab },
@@ -635,11 +629,10 @@ const PosSettingsView = () => {
                         <button
                             key={tab.name}
                             onClick={() => setActiveTab(tab.name)}
-                            className={`whitespace-nowrap flex items-center py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
-                                activeTab === tab.name
-                                    ? 'border-blue-600 text-blue-600'
-                                    : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
-                            }`}
+                            className={`whitespace-nowrap flex items-center py-4 px-1 border-b-2 font-medium text-sm transition-colors ${activeTab === tab.name
+                                ? 'border-blue-600 text-blue-600'
+                                : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
+                                }`}
                         >
                             <tab.icon className="mr-2 h-5 w-5" />
                             {tab.name}

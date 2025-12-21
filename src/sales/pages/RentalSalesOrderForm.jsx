@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import axios from 'axios';
-import { ArrowLeft, Plus, Trash2, Save, Upload, Loader2, Link as LinkIcon, Download } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, Save, Upload, Loader2, Link as LinkIcon, Download, Edit } from 'lucide-react';
 
 const API_URL = import.meta.env.VITE_API_BASE_URL;
 
@@ -11,6 +11,8 @@ const RentalSalesOrderForm = () => {
     const quotationId = searchParams.get('quotationId');
     const navigate = useNavigate();
     const isEditMode = !!id;
+
+    const [sourceQuotationNumber, setSourceQuotationNumber] = useState(null);
 
     const [loading, setLoading] = useState(false);
     const [fetchingData, setFetchingData] = useState(true);
@@ -121,6 +123,8 @@ const RentalSalesOrderForm = () => {
                 } else if (quotationId) {
                     const quoteRes = await axios.get(`${API_URL}/sales/rental-quotations/${quotationId}`, { headers });
                     const quote = quoteRes.data;
+
+                    setSourceQuotationNumber(quote.quotationNumber);
 
                     setFormData(prev => ({
                         ...prev,
@@ -253,12 +257,15 @@ const RentalSalesOrderForm = () => {
 
         if (field === 'crmProductId') {
             const product = products.find(p => p.id == value);
+            console.log("Selected Product ID:", value);
+            console.log("Found Product:", product);
             if (product) {
                 // Populate defaults from product if available
-                newItems[index].itemCode = product.productCode || '';
-                newItems[index].itemName = product.productName || '';
+                newItems[index].itemCode = product.itemCode || '';
+                newItems[index].itemName = product.name || '';
                 newItems[index].description = product.description || '';
                 newItems[index].rentalValue = product.salesPrice || 0; // Assuming salesPrice as base rental
+                console.log("Auto-filled Items:", newItems[index]);
                 // Categories match?
             }
         }
@@ -348,6 +355,25 @@ const RentalSalesOrderForm = () => {
                 await axios.put(`${API_URL}/sales/rental-sales-orders/${id}`, payload, { headers });
             } else {
                 await axios.post(`${API_URL}/sales/rental-sales-orders`, payload, { headers });
+
+                // If created from a quotation, update the quotation status to RENTAL_ORDER
+                if (quotationId) {
+                    try {
+                        console.log(`Updating status for quotation: ${quotationId} to RENTAL_ORDER`);
+                        await axios.patch(`${API_URL}/sales/rental-quotations/${quotationId}/status`, null, {
+                            params: {
+                                status: 'RENTAL_ORDER'
+                            },
+                            headers: {
+                                Authorization: `Bearer ${token}`
+                            } // Use headers defined above which includes Authorization
+                        });
+                        console.log("Quotation status updated successfully.");
+                    } catch (statusErr) {
+                        console.error("Failed to update quotation status", statusErr);
+                        // Optionally warn the user, but don't block the success flow
+                    }
+                }
             }
 
             navigate('/sales/rental-sales-orders');
@@ -490,7 +516,7 @@ const RentalSalesOrderForm = () => {
                                             <td className="p-2 border-r">
                                                 <select value={item.crmProductId} onChange={(e) => handleItemChange(index, 'crmProductId', e.target.value)} className="w-full border border-gray-300 rounded px-2 py-1 mb-1">
                                                     <option value="">Select Item</option>
-                                                    {products.map(p => <option key={p.id} value={p.id}>{p.productName}</option>)}
+                                                    {products.map(p => <option key={p.id} value={p.id}>{p.name} ({p.itemCode})</option>)}
                                                 </select>
                                                 <input type="text" placeholder="Item Code" value={item.itemCode} onChange={(e) => handleItemChange(index, 'itemCode', e.target.value)} className="w-full border border-gray-300 rounded px-2 py-1 mb-1" />
                                                 <input type="text" placeholder="Item Name" value={item.itemName} onChange={(e) => handleItemChange(index, 'itemName', e.target.value)} className="w-full border border-gray-300 rounded px-2 py-1" />

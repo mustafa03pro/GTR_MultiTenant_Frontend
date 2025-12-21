@@ -4,6 +4,19 @@ import axios from 'axios';
 
 const API_URL = import.meta.env.VITE_API_BASE_URL;
 
+const constructImageUrl = (relativeUrl) => {
+    if (!relativeUrl) return '';
+    if (relativeUrl.startsWith('data:') || relativeUrl.startsWith('http')) return relativeUrl;
+
+    // Backend returns paths relative to the uploads root (e.g., "tenantId/folder/file.ext")
+    const cleanPath = relativeUrl.startsWith('/') ? relativeUrl.slice(1) : relativeUrl;
+
+    if (cleanPath.startsWith('uploads/')) {
+        return `${API_URL}/pos/uploads/view/${cleanPath.replace('uploads/', '')}`;
+    }
+    return `${API_URL}/pos/uploads/view/${cleanPath}`;
+};
+
 const getAuthHeaders = () => {
     const token = localStorage.getItem('token');
     if (!token) throw new Error("No authentication token found.");
@@ -69,7 +82,7 @@ const CompanyInfo = () => {
                 if (data && data.companyName) {
                     setCompanyInfo(data);
                     setFormData(data);
-                    setLogoPreview(data.logoUrl ? `${API_URL}${data.logoUrl}?t=${new Date().getTime()}` : null);
+                    setLogoPreview(data.logoUrl ? constructImageUrl(data.logoUrl) : null);
                 } else {
                     setCompanyInfo(null);
                     setFormData(initialFormData);
@@ -128,7 +141,7 @@ const CompanyInfo = () => {
     const handleCancel = () => {
         setIsEditing(false);
         setFormData(companyInfo || initialFormData);
-        setLogoPreview(companyInfo?.logoUrl ? `${API_URL}${companyInfo.logoUrl}?t=${new Date().getTime()}` : null);
+        setLogoPreview(companyInfo?.logoUrl ? constructImageUrl(companyInfo.logoUrl) : null);
     };
 
     if (loading) {
@@ -204,7 +217,7 @@ const CompanyInfo = () => {
             <div className="space-y-6">
                 {companyInfo.logoUrl && (
                     <Section title="Company Logo">
-                        <img src={`${API_URL}${companyInfo.logoUrl}?t=${new Date().getTime()}`} alt="Company Logo" className="h-24 w-auto object-contain rounded-md border p-2 bg-white" />
+                        <img src={constructImageUrl(companyInfo.logoUrl)} alt="Company Logo" className="h-24 w-auto object-contain rounded-md border p-2 bg-white" />
                     </Section>
                 )}
                 <Section title="General Information">

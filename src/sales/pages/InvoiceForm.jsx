@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import axios from 'axios';
 import { ArrowLeft, Plus, Trash2, Save, Upload, Loader2, Paperclip } from 'lucide-react';
 
@@ -8,6 +8,10 @@ const API_URL = import.meta.env.VITE_API_BASE_URL;
 const InvoiceForm = () => {
     const { id } = useParams();
     const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
+    const salesOrderId = searchParams.get('salesOrderId');
+    const quotationId = searchParams.get('quotationId');
+    const proformaInvoiceId = searchParams.get('proformaInvoiceId');
     const isEditMode = !!id;
 
     const [loading, setLoading] = useState(false);
@@ -143,6 +147,141 @@ const InvoiceForm = () => {
                         setItems([]);
                     }
                     setExistingAttachments(data.attachments || []);
+                    setExistingAttachments(data.attachments || []);
+                } else if (salesOrderId) {
+                    const soRes = await axios.get(`${API_URL}/sales/orders/${salesOrderId}`, { headers });
+                    const data = soRes.data;
+
+                    setFormData(prev => ({
+                        ...prev,
+                        customerId: data.customerId || '',
+                        orderNumber: data.salesOrderNumber || '',
+                        salespersonId: data.salespersonId || '',
+                        termsAndConditions: data.termsAndConditions || '',
+                        notes: data.notes || '',
+                        // Map totals? Or let recalculation handle it?
+                        // We should map discount/charges percentages if possible, but form uses absolute values. 
+                        // We'll let totals recalc based on items.
+                        totalDiscount: data.totalDiscount || 0,
+                        otherCharges: data.otherCharges || 0
+                    }));
+                    // Set addresses
+                    const cust = (custRes.data.content || custRes.data || []).find(c => c.id === data.customerId);
+                    if (cust) {
+                        setBillingAddress(formatAddress(cust.billingAddress));
+                        setShippingAddress(formatAddress(cust.shippingAddress));
+                    }
+
+                    if (data.items) {
+                        const mappedItems = data.items.map(item => ({
+                            crmProductId: item.crmProductId || '',
+                            itemCode: item.productCode || '', // Assuming SO item has productCode
+                            itemName: item.productName || '',
+                            description: item.description || '',
+                            categoryId: item.categoryId || '',
+                            subcategoryId: item.subcategoryId || '',
+                            availableSubcategories: [], // Would need to fetch if critical, or let user re-select
+                            quantityGross: 0,
+                            quantityNet: 0,
+                            sendQuantity: item.quantity || 0,
+                            invoiceQuantity: item.quantity || 0,
+                            packingType: '',
+                            rate: item.rate || 0,
+                            amount: (item.quantity || 0) * (item.rate || 0),
+                            taxPercentage: item.taxPercentage || 0,
+                            taxValue: 0, // Will be calc by hook
+                            isTaxExempt: false
+                        }));
+                        setItems(mappedItems);
+                    }
+                } else if (quotationId) {
+                    const quotRes = await axios.get(`${API_URL}/sales/quotations/${quotationId}`, { headers });
+                    const data = quotRes.data;
+
+                    setFormData(prev => ({
+                        ...prev,
+                        customerId: data.customerId || '',
+                        reference: data.quotationNumber || '',
+                        salespersonId: data.salespersonId || '',
+                        termsAndConditions: data.termsAndConditions || '',
+                        notes: data.notes || '',
+                        totalDiscount: data.totalDiscount || 0,
+                        otherCharges: data.otherCharges || 0
+                    }));
+
+                    const cust = (custRes.data.content || custRes.data || []).find(c => c.id === data.customerId);
+                    if (cust) {
+                        setBillingAddress(formatAddress(cust.billingAddress));
+                        setShippingAddress(formatAddress(cust.shippingAddress));
+                    }
+
+                    if (data.items) {
+                        const mappedItems = data.items.map(item => ({
+                            crmProductId: item.crmProductId || '',
+                            itemCode: item.productCode || item.itemCode || '',
+                            itemName: item.productName || item.itemName || '',
+                            description: item.description || '',
+                            categoryId: item.categoryId || '',
+                            subcategoryId: item.subcategoryId || '',
+                            availableSubcategories: [],
+                            quantityGross: 0,
+                            quantityNet: 0,
+                            sendQuantity: item.quantity || 0,
+                            invoiceQuantity: item.quantity || 0,
+                            packingType: '',
+                            rate: item.rate || 0,
+                            amount: (item.quantity || 0) * (item.rate || 0),
+                            taxPercentage: item.taxPercentage || 0,
+                            taxValue: 0,
+                            isTaxExempt: item.isTaxExempt || false
+                        }));
+                        setItems(mappedItems);
+                    }
+                } else if (proformaInvoiceId) {
+                    const piRes = await axios.get(`${API_URL}/sales/proforma-invoices/${proformaInvoiceId}`, { headers });
+                    const data = piRes.data;
+
+                    setFormData(prev => ({
+                        ...prev,
+                        customerId: data.customerId || '',
+                        // reference: data.invoiceNumber || '', // Maybe reference or order number
+                        orderNumber: data.poNumber || '', // Map PO Number if available
+                        salespersonId: data.salespersonId || '',
+                        termsAndConditions: data.termsAndConditions || '',
+                        notes: data.notes || '',
+                        totalDiscount: data.totalDiscount || 0,
+                        otherCharges: data.otherCharges || 0
+                    }));
+
+                    // Set addresses
+                    const cust = (custRes.data.content || custRes.data || []).find(c => c.id === data.customerId);
+                    if (cust) {
+                        setBillingAddress(formatAddress(cust.billingAddress));
+                        setShippingAddress(formatAddress(cust.shippingAddress));
+                    }
+
+                    if (data.items) {
+                        const mappedItems = data.items.map(item => ({
+                            crmProductId: item.crmProductId || '',
+                            itemCode: item.productCode || item.itemCode || '',
+                            itemName: item.productName || item.itemName || '',
+                            description: item.description || '',
+                            categoryId: item.categoryId || '',
+                            subcategoryId: item.subcategoryId || '',
+                            availableSubcategories: [],
+                            quantityGross: 0,
+                            quantityNet: 0,
+                            sendQuantity: item.quantity || 0,
+                            invoiceQuantity: item.quantity || 0,
+                            packingType: '',
+                            rate: item.rate || 0,
+                            amount: (item.quantity || 0) * (item.rate || 0),
+                            taxPercentage: item.taxPercentage || 0,
+                            taxValue: 0,
+                            isTaxExempt: item.isTaxExempt || false
+                        }));
+                        setItems(mappedItems);
+                    }
                 }
             } catch (err) {
                 console.error("Failed to load data", err);
@@ -152,7 +291,7 @@ const InvoiceForm = () => {
             }
         };
         loadDependencies();
-    }, [id, isEditMode]);
+    }, [id, isEditMode, salesOrderId, quotationId, proformaInvoiceId]);
 
     const formatAddress = (addr) => {
         if (!addr) return '';
@@ -311,6 +450,48 @@ const InvoiceForm = () => {
                 await axios.put(`${API_URL}/sales/sales-invoices/${id}`, payload, config);
             } else {
                 await axios.post(`${API_URL}/sales/sales-invoices`, payload, config);
+
+                // Update Quotation status if created from Quotation
+                if (quotationId) {
+                    try {
+                        await axios.patch(`${API_URL}/sales/quotations/${quotationId}/status`, null, {
+                            params: {
+                                status: 'INVOICED'
+                            },
+                            headers: { Authorization: `Bearer ${token}` }
+                        });
+                        console.log("Quotation status updated automatically");
+                    } catch (statusErr) {
+                        console.warn("Failed to update quotation status automatically", statusErr);
+                    }
+                }
+                // Update Sales Order status if created from Sales Order
+                if (salesOrderId) {
+                    try {
+                        await axios.patch(`${API_URL}/sales/orders/${salesOrderId}/status`, null, {
+                            params: {
+                                status: 'INVOICED'
+                            },
+                            headers: { Authorization: `Bearer ${token}` }
+                        });
+                    } catch (statusErr) {
+                        console.warn("Failed to update sales order status automatically", statusErr);
+                    }
+                }
+
+                // Update Proforma Invoice status if created from Proforma Invoice
+                if (proformaInvoiceId) {
+                    try {
+                        await axios.patch(`${API_URL}/sales/proforma-invoices/${proformaInvoiceId}/status`, null, {
+                            params: {
+                                status: 'INVOICED' // Assuming INVOICED is the correct status
+                            },
+                            headers: { Authorization: `Bearer ${token}` }
+                        });
+                    } catch (statusErr) {
+                        console.warn("Failed to update proforma invoice status automatically", statusErr);
+                    }
+                }
             }
             navigate('/sales/invoices');
         } catch (err) {

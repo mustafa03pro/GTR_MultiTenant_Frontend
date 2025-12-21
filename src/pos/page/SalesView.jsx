@@ -37,11 +37,14 @@ const SalesView = () => {
     const [isLookupModalOpen, setLookupModalOpen] = useState(false);
     const [isDiscountModalOpen, setDiscountModalOpen] = useState(false);
     const [isSubmittingProduct, setIsSubmittingProduct] = useState(false);
+    const [showInactive, setShowInactive] = useState(false);
+    const [pendingSaleId, setPendingSaleId] = useState(null);
+    const [resumedSaleDetails, setResumedSaleDetails] = useState(null);
 
     useEffect(() => {
         const token = localStorage.getItem('token');
         const headers = { "Authorization": `Bearer ${token}` };
-        
+
         const fetchInitialData = async () => {
             try {
                 const [productsRes, customersRes, storesRes, categoriesRes] = await Promise.all([
@@ -156,6 +159,7 @@ const SalesView = () => {
     const handleClearCart = () => {
         setCart([]);
         setDiscountCents(0);
+        setResumedSaleDetails(null);
     };
 
     const handleBarcodeScan = (e) => {
@@ -163,6 +167,7 @@ const SalesView = () => {
             e.preventDefault();
             let found = false;
             for (const product of products) {
+                if (!showInactive && !product.active) continue;
                 const variant = product.variants.find(v => v.barcode === barcode.trim());
                 if (variant) {
                     handleAddToCart(product, variant);
@@ -176,7 +181,7 @@ const SalesView = () => {
         }
     };
 
-    const handleProcessSale = async (orderId, payment) => {
+    const handleProcessSale = async (orderId, payment, saleDetails = {}) => {
         setLoading(prev => ({ ...prev, sale: true }));
         const saleRequest = {
             discountCents,
@@ -185,6 +190,10 @@ const SalesView = () => {
             orderId: orderId,
             items: cart.map(item => ({ productVariantId: item.productVariantId, quantity: item.quantity })),
             payments: [payment],
+            orderType: saleDetails.orderType || 'DINE_IN',
+            adultsCount: saleDetails.adultsCount || 0,
+            kidsCount: saleDetails.kidsCount || 0,
+            salesSource: saleDetails.salesSource || 'POS',
         };
 
         try {
@@ -195,6 +204,7 @@ const SalesView = () => {
             setDiscountCents(0);
             setBillModalOpen(false);
             setPaymentModalOpen(false);
+            setResumedSaleDetails(null);
             setCompletedSale(response.data); // Capture the completed sale data
         } catch (err) {
             console.error("Sale creation failed:", err);
@@ -204,7 +214,7 @@ const SalesView = () => {
         }
     };
 
-    const handleParkSale = async (orderId) => {
+    const handleParkSale = async (orderId, saleDetails = {}) => {
         if (cart.length === 0) {
             alert("Cannot park an empty sale.");
             return;
@@ -218,6 +228,10 @@ const SalesView = () => {
             items: cart.map(item => ({ productVariantId: item.productVariantId, quantity: item.quantity })),
             status: 'pending', // Explicitly set status for parked sales
             payments: [], // No payment for a parked sale
+            orderType: saleDetails.orderType || 'DINE_IN',
+            adultsCount: saleDetails.adultsCount || 0,
+            kidsCount: saleDetails.kidsCount || 0,
+            salesSource: saleDetails.salesSource || 'POS',
         };
 
         try {
@@ -246,25 +260,48 @@ const SalesView = () => {
             // Fetch the full sale details
             const response = await axios.get(`${API_URL}/pos/sales/${saleId}`, { headers: { "Authorization": `Bearer ${token}` } });
             const saleToResume = response.data;
+            console.log("Resuming Sale Data:", saleToResume);
+            if (saleToResume.items) {
+                console.log("Sale Items:", saleToResume.items);
+                saleToResume.items.forEach((item, index) => {
+                    console.log(`Item ${index}:`, item, "ProductVariant:", item.productVariant);
+                });
+            }
 
             // Reconstruct the cart
-            const newCart = saleToResume.items.map(item => ({
-                productVariantId: item.productVariant.id,
-                productName: item.productVariant.product.name,
-                priceCents: Number(item.priceCents || 0),
-                taxRate: item.productVariant.taxRate ? {
-                    id: item.productVariant.taxRate.id,
-                    name: item.productVariant.taxRate.name,
-                    percent: Number(item.productVariant.taxRate.percent || 0),
-                } : null,
-                attributes: item.productVariant.attributes,
-                quantity: item.quantity,
-                availableQuantity: item.productVariant.quantity,
-            }));
+            const newCart = saleToResume.items.map(item => {
+                if (!item.productVariant) return null;
+                return {
+                    productVariantId: item.productVariant.id,
+                    productName: item.productVariant.product.name,
+                    priceCents: Number(item.priceCents || 0),
+                    taxRate: item.productVariant.taxRate ? {
+                        id: item.productVariant.taxRate.id,
+                        name: item.productVariant.taxRate.name,
+                        percent: Number(item.productVariant.taxRate.percent || 0),
+                    } : null,
+                    attributes: item.productVariant.attributes,
+                    quantity: item.quantity,
+                    availableQuantity: item.productVariant.quantity,
+                };
+            }).filter(Boolean);
+
+            if (newCart.length === 0) {
+                alert("Could not resume sale: No valid items found.");
+                setLoading(prev => ({ ...prev, sale: false }));
+                return;
+            }
 
             setCart(newCart);
             setSelectedCustomer(saleToResume.customerId || '');
             setDiscountCents(saleToResume.discountCents || 0);
+            setPendingSaleId(saleToResume.orderId || saleToResume.invoiceNo);
+            setResumedSaleDetails({
+                orderType: saleToResume.orderType,
+                adultsCount: saleToResume.adultsCount,
+                kidsCount: saleToResume.kidsCount,
+                salesSource: saleToResume.salesSource
+            });
 
             // Close the lookup modal and open the bill modal directly
             setLookupModalOpen(false);
@@ -314,12 +351,13 @@ const SalesView = () => {
     const filteredProducts = useMemo(() =>
         products.filter(p =>
             p && p.name &&
+            (showInactive || p.active) &&
             (p.name.toLowerCase().includes(searchTerm.toLowerCase()) || (p.sku || '').toLowerCase().includes(searchTerm.toLowerCase())) &&
             (selectedCategory === 'All' ||
-             (selectedCategory === 'Uncategorized' && !p.categoryName) ||
-             (p.categoryName === selectedCategory))
+                (selectedCategory === 'Uncategorized' && !p.categoryName) ||
+                (p.categoryName === selectedCategory))
         )
-    , [products, searchTerm, selectedCategory]);
+        , [products, searchTerm, selectedCategory, showInactive]);
 
     // Centralized calculation logic
     const subtotal = useMemo(() => cart.reduce((sum, item) => sum + item.priceCents * item.quantity, 0), [cart]);
@@ -351,7 +389,7 @@ const SalesView = () => {
                 headers: { Authorization: `Bearer ${token}` },
                 responseType: 'blob',
             });
-    
+
             const url = window.URL.createObjectURL(new Blob([response.data]));
             const link = document.createElement('a');
             link.href = url;
@@ -378,6 +416,8 @@ const SalesView = () => {
                     selectedCustomer={selectedCustomer} onCustomerChange={setSelectedCustomer} customers={customers}
                     onAddCustomer={() => setCustomerModalOpen(true)}
                     onAddProduct={() => setProductPanelOpen(true)}
+                    showInactive={showInactive}
+                    onToggleInactive={() => setShowInactive(!showInactive)}
                 />
                 {loading.products || loading.stores ? (
                     <div className="flex-grow flex justify-center items-center"><Loader className="animate-spin h-10 w-10 text-blue-600" /></div>
@@ -403,11 +443,10 @@ const SalesView = () => {
                 />
                 <div className="p-4 border-t">
                     <button
-                        onClick={handleOpenPaymentModal}
-                        disabled={cart.length === 0 || !selectedStore}
+                        disabled
                         className="w-full btn-primary text-lg"
                     >
-                        Place Order {formatPrice(total)}
+                        Total Amount {formatPrice(total)}
                     </button>
                 </div>
             </div>
@@ -426,10 +465,11 @@ const SalesView = () => {
             {isBillModalOpen && (
                 <BillModal
                     isOpen={isBillModalOpen}
-                    onClose={() => setBillModalOpen(false)}
+                    onClose={() => { setBillModalOpen(false); setPendingSaleId(null); }}
                     cart={cart}
                     customer={customers.find(c => c.id === selectedCustomer)}
                     subtotal={subtotal}
+                    initialOrderId={pendingSaleId}
                     tax={tax}
                     discountCents={discountCents}
                     total={total}
@@ -437,6 +477,7 @@ const SalesView = () => {
                     onOpenDiscountModal={() => setDiscountModalOpen(true)}
                     onParkSale={handleParkSale}
                     loading={loading.sale}
+                    initialDetails={resumedSaleDetails}
                 />
             )}
 

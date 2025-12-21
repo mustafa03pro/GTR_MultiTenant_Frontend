@@ -25,9 +25,23 @@ const ViewSales = () => {
     const [showConvertDropdown, setShowConvertDropdown] = useState(false);
     const [showMoreDropdown, setShowMoreDropdown] = useState(false);
 
+
+    const [company, setCompany] = useState(null);
+    const attachmentRef = React.useRef(null);
+
     const authHeaders = useMemo(() => ({ headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } }), []);
 
     useEffect(() => {
+        const fetchCompany = async () => {
+            try {
+                const res = await axios.get(`${API_URL}/company-info`, authHeaders);
+                setCompany(res.data);
+            } catch (e) {
+                console.error("Failed to fetch company info", e);
+            }
+        };
+        fetchCompany();
+
         if (orderId) {
             const fetchOrderDetails = async () => {
                 setLoading(true);
@@ -43,6 +57,60 @@ const ViewSales = () => {
             fetchOrderDetails();
         }
     }, [orderId, authHeaders]);
+
+    const handleWhatsApp = () => {
+        const phoneNumber = viewingOrder?.customerParty?.phone || '';
+        const text = `Hi, here is the Sales Order ${viewingOrder?.salesOrderNumber}.`;
+        window.open(`https://wa.me/${phoneNumber}?text=${encodeURIComponent(text)}`, '_blank');
+    };
+
+    const handleEmail = () => {
+        const email = viewingOrder?.customerParty?.email || '';
+        const subject = `Sales Order ${viewingOrder?.salesOrderNumber}`;
+        const body = `Dear Customer,\n\nPlease find attached the Sales Order ${viewingOrder?.salesOrderNumber}.\n\nRegards,\n${company?.companyName || ''}`;
+        window.location.href = `mailto:${email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    };
+
+    const handlePrintLetterhead = () => {
+        window.print();
+    };
+
+    const scrollToAttachments = () => {
+        if (attachmentRef.current) {
+            attachmentRef.current.scrollIntoView({ behavior: 'smooth' });
+        } else if (!viewingOrder?.attachments || viewingOrder.attachments.length === 0) {
+            alert("No attachments found.");
+        }
+    };
+
+    const handleCancelOrder = async () => {
+        if (!window.confirm('Are you sure you want to mark this order as CANCELLED (Void)?')) return;
+        try {
+            await axios.patch(`${API_URL}/sales/orders/${orderId}/status`, null, {
+                params: { status: 'CANCELLED' },
+                headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+            });
+            setViewingOrder(prev => ({ ...prev, status: 'CANCELLED' }));
+            setShowMoreDropdown(false);
+        } catch (err) {
+            console.error("Failed to cancel order", err);
+            alert("Failed to update status. Please try again.");
+        }
+    };
+
+    const handleDeleteOrder = async () => {
+        if (!window.confirm('Are you sure you want to PERMANENTLY DELETE this sales order? This action cannot be undone.')) return;
+        try {
+            await axios.delete(`${API_URL}/sales/orders/${orderId}`, {
+                headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+            });
+            alert("Sales Order deleted successfully.");
+            navigate('/sales/orders');
+        } catch (err) {
+            console.error("Failed to delete order", err);
+            alert("Failed to delete order. Please try again.");
+        }
+    };
 
     // No modal overlay needed, just full page content
     return (
@@ -67,13 +135,14 @@ const ViewSales = () => {
                     </div>
 
                     {/* Toolbar */}
-                    <div className="bg-gray-50 border-b p-3 flex flex-wrap gap-2 items-center relative z-10">
+                    <div className="bg-gray-50 border-b p-3 flex flex-wrap gap-2 items-center relative z-10 print:hidden">
                         <button onClick={() => navigate(`/sales/orders/edit/${orderId}`)} className="flex items-center gap-1 bg-blue-500 text-white px-3 py-1.5 rounded text-sm hover:bg-primary transition-colors" title="Edit"><Edit size={16} /></button>
                         <button onClick={() => alert('PDF feature coming soon')} className="flex items-center gap-1 bg-red-500 text-white px-3 py-1.5 rounded text-sm hover:bg-red-600 transition-colors" title="PDF"><FileText size={16} /></button>
-                        <button onClick={() => window.open(`https://wa.me/?text=SalesOrder%20${viewingOrder?.salesOrderNumber}`, '_blank')} className="flex items-center gap-1 bg-green-500 text-white px-3 py-1.5 rounded text-sm hover:bg-green-600 transition-colors" title="WhatsApp"><span className="font-bold">WhatsApp</span></button>
+                        <button onClick={handleWhatsApp} className="flex items-center gap-1 bg-green-500 text-white px-3 py-1.5 rounded text-sm hover:bg-green-600 transition-colors" title="WhatsApp"><span className="font-bold">WhatsApp</span></button>
                         <button onClick={() => window.print()} className="flex items-center gap-1 bg-blue-600 text-white px-3 py-1.5 rounded text-sm hover:bg-blue-700 transition-colors" title="Print"><span className="font-bold">Print</span></button>
-                        <button onClick={() => window.print()} className="flex items-center gap-1 bg-sky-600 text-white px-3 py-1.5 rounded text-sm hover:bg-sky-700 transition-colors">Print On Letterhead</button>
-                        <button onClick={() => alert('Email feature coming soon')} className="flex items-center gap-1 bg-yellow-500 text-white px-3 py-1.5 rounded text-sm hover:bg-yellow-600 transition-colors" title="Email"><span className="font-bold">Email</span></button>
+                        <button onClick={handlePrintLetterhead} className="flex items-center gap-1 bg-sky-600 text-white px-3 py-1.5 rounded text-sm hover:bg-sky-700 transition-colors">Print On Letterhead</button>
+                        <button onClick={handleEmail} className="flex items-center gap-1 bg-yellow-500 text-white px-3 py-1.5 rounded text-sm hover:bg-yellow-600 transition-colors" title="Email"><span className="font-bold">Email</span></button>
+                        <button onClick={scrollToAttachments} className="flex items-center gap-1 bg-gray-500 text-white px-3 py-1.5 rounded text-sm hover:bg-gray-600 transition-colors" title="Attachments"><span className="font-bold">Attachments</span></button>
 
                         <div className="ml-auto flex gap-2 relative">
                             {/* Convert Dropdown */}
@@ -88,13 +157,15 @@ const ViewSales = () => {
                                     <div className="absolute right-0 mt-1 w-48 bg-white rounded-md shadow-lg border border-gray-200 py-1 z-20">
                                         <button
                                             className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                                            onClick={() => {
-                                                setShowConvertDropdown(false);
-                                                // Handle Convert Logic, e.g., navigate to invoice creation
-                                                alert('Convert to Invoice clicked');
-                                            }}
+                                            onClick={() => navigate(`/sales/invoices/new?salesOrderId=${orderId}`)}
                                         >
                                             Convert to Invoice
+                                        </button>
+                                        <button
+                                            className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                                            onClick={() => navigate(`/sales/proforma-invoices/new?salesOrderId=${orderId}`)}
+                                        >
+                                            Convert to Proforma Invoice
                                         </button>
                                     </div>
                                 )}
@@ -110,9 +181,9 @@ const ViewSales = () => {
                                 </button>
                                 {showMoreDropdown && (
                                     <div className="absolute right-0 mt-1 w-48 bg-white rounded-md shadow-lg border border-gray-200 py-1 z-20">
-                                        <button className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" onClick={() => setShowMoreDropdown(false)}>Clone</button>
-                                        <button className="block w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50" onClick={() => setShowMoreDropdown(false)}>Delete</button>
-                                        <button className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" onClick={() => setShowMoreDropdown(false)}>Void</button>
+                                        <button className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" onClick={() => navigate(`/sales/orders/new?cloneId=${orderId}`)}>Clone</button>
+                                        <button className="block w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50" onClick={handleDeleteOrder}>Delete</button>
+                                        <button className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" onClick={handleCancelOrder}>Void</button>
                                     </div>
                                 )}
                             </div>
@@ -282,6 +353,20 @@ const ViewSales = () => {
                                     </div>
 
                                 </div>
+
+                                {/* Attachments Section */}
+                                {viewingOrder.attachments && viewingOrder.attachments.length > 0 && (
+                                    <div className="mt-8 border-t pt-4 bg-white p-6 shadow-sm border border-gray-200" ref={attachmentRef}>
+                                        <h3 className="font-bold text-sm mb-2">Attachments</h3>
+                                        <div className="flex flex-wrap gap-2">
+                                            {viewingOrder.attachments.map((file, index) => (
+                                                <a key={index} href={`${API_URL}/sales/attachments/${file}`} target="_blank" rel="noreferrer" className="px-3 py-1 bg-gray-100 rounded text-blue-600 hover:underline text-xs flex items-center gap-1 border">
+                                                    {file.split('/').pop()}
+                                                </a>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         ) : (
                             <div className="flex flex-col items-center justify-center h-64 text-gray-500">

@@ -124,7 +124,7 @@ const PurchaseOrderForm = ({ onSave, onCancel, stores, products }) => {
                     </div>
                 ))}
             </div>
-            <button type="button" onClick={addItem} className="btn-secondary text-sm"><PlusCircle size={16} className="mr-2" />Add Item</button> 
+            <button type="button" onClick={addItem} className="btn-secondary text-sm"><PlusCircle size={16} className="mr-2" />Add Item</button>
             <div className="flex justify-end gap-2 pt-4 border-t border-border">
                 <button type="button" onClick={onCancel} className="btn-secondary">Cancel</button>
                 <button type="submit" className="btn-primary" disabled={isLoading}>
@@ -408,7 +408,7 @@ const StockLevelsTab = () => {
             ]);
             // Pre-process products to include productName in each variant for easier access
             const processedProducts = productsRes.data.map(p => ({
-                ...p, variants: p.variants.map(v => ({...v, productName: p.name}))
+                ...p, variants: p.variants.map(v => ({ ...v, productName: p.name }))
             }));
             setProducts(processedProducts);
             setStores(storesRes.data);
@@ -496,7 +496,7 @@ const StockLevelsTab = () => {
 
     const existingVariantIdsInStore = useMemo(() =>
         new Set(stockLevels.map(item => item.productVariantId))
-    , [stockLevels]);
+        , [stockLevels]);
 
     if (loading.stores) return <div className="flex justify-center items-center p-8"><Loader className="animate-spin h-8 w-8 text-primary" /></div>;
     if (error) return <div className="text-center text-red-500 p-4 bg-red-500/10 rounded-md">{error}</div>;
@@ -523,14 +523,14 @@ const StockLevelsTab = () => {
                 </div>
             ) : (
                 <div className="space-y-6">
-                    {Object.entries(groupedStock).map(([category, items]) => ( 
+                    {Object.entries(groupedStock).map(([category, items]) => (
                         <div key={category} className="bg-card rounded-xl shadow-sm overflow-hidden">
                             <h4 className="px-4 py-2 bg-background-muted text-foreground-muted font-semibold text-sm border-b border-border">{category}</h4>
                             <div className="overflow-x-auto">
                                 <table className="min-w-full divide-y divide-border">
                                     <thead className="bg-background-muted">
                                         <tr><th className="th-cell">Product</th><th className="th-cell">SKU</th><th className="th-cell text-right">Quantity</th>
-                                        {canManage && <th className="th-cell">Actions</th>}
+                                            {canManage && <th className="th-cell">Actions</th>}
                                         </tr>
                                     </thead>
                                     <tbody className="text-foreground-muted">
@@ -622,7 +622,7 @@ const InventoryView = () => {
     const [activeTab, setActiveTab] = useState('po');
 
     const tabs = [
-        { id: 'po', name: 'Purchase Orders', icon: ShoppingCart },
+        // { id: 'po', name: 'Purchase Orders', icon: ShoppingCart },
         { id: 'stock', name: 'Stock Levels', icon: Package },
         { id: 'movements', name: 'Stock Movements', icon: History },
     ];
@@ -640,11 +640,10 @@ const InventoryView = () => {
                         <button
                             key={tab.id}
                             onClick={() => setActiveTab(tab.id)}
-                            className={`whitespace-nowrap flex items-center py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
-                                activeTab === tab.id
+                            className={`whitespace-nowrap flex items-center py-4 px-1 border-b-2 font-medium text-sm transition-colors ${activeTab === tab.id
                                     ? 'border-primary text-primary'
                                     : 'border-transparent text-foreground-muted hover:text-foreground hover:border-border'
-                            }`}
+                                }`}
                         >
                             <tab.icon className="mr-2 h-5 w-5" />
                             {tab.name}

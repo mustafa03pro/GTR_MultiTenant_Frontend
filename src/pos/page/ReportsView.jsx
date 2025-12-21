@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from 'recharts';
 import { Loader, AlertCircle, Calendar } from 'lucide-react';
@@ -17,6 +18,7 @@ const StatCard = ({ title, value }) => (
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8'];
 
 const ReportsView = () => {
+    const navigate = useNavigate();
     const [sales, setSales] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
@@ -148,6 +150,49 @@ const ReportsView = () => {
                             <Legend />
                         </PieChart>
                     </ResponsiveContainer>
+                </div>
+            </div>
+
+            {/* Detailed Reports Section */}
+            <div className="bg-white p-6 rounded-xl shadow-sm">
+                <h2 className="text-xl font-semibold text-slate-800 mb-6 border-b pb-2">Detailed Reports</h2>
+                <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                    {[
+                        {
+                            title: "Business Summary",
+                            path: "/pos-reports/business-summary",
+                            description: "This essential tool provides a concise yet thorough overview of your company's sales activities. It presents key information such as item counts and total amounts across crucial categories including gross sales, net sales, returns, discounts, and total VAT.",
+                        },
+                        {
+                            title: "Abstract Report",
+                            description: "Designed primarily for comparative purposes, this report empowers you to efficiently evaluate total sales figures across different company brands. By utilizing this insightful report, you can gain a comprehensive understanding of the performance variations between your various brands.",
+                        },
+                        {
+                            title: "Weekly Sales Analysis",
+                            description: "This insightful report provides a comprehensive overview of sales performance on a weekly basis. By tracking sales trends over time, the report allows you to analyze and compare the growth between the current and previous weeks.",
+                        },
+                        {
+                            title: "Daily Sales Report",
+                            description: "This report provides a concise overview of the sales made on a daily basis. It serves as an end-of-day summary, offering valuable insights into the revenue generated during each business day.",
+                        },
+                        {
+                            title: "Total Daily Sales Report",
+                            description: "This report provides a concise and comprehensive summary of sales for each selected date. By generating this report, you gain valuable insights into the total sales achieved on a daily basis.",
+                        },
+                        {
+                            title: "Closing Report",
+                            description: "This comprehensive report serves as an end-of-day summary, providing you with detailed information about the day's sales activities. It offers a comprehensive breakdown of sales details, enabling you to review key metrics and track performance effectively.",
+                        },
+                    ].map((report, index) => (
+                        <div key={index} onClick={() => report.path && navigate(report.path)} className="group cursor-pointer hover:bg-slate-50 p-4 rounded-xl border border-transparent hover:border-slate-100 transition-all duration-200">
+                            <h3 className="text-base font-bold text-blue-600 mb-2 group-hover:underline decoration-blue-300 underline-offset-2">
+                                {report.title}
+                            </h3>
+                            <p className="text-sm text-slate-500 leading-relaxed text-justify">
+                                {report.description}
+                            </p>
+                        </div>
+                    ))}
                 </div>
             </div>
         </div>

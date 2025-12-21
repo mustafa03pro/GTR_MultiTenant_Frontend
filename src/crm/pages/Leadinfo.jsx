@@ -60,11 +60,13 @@ const ActivityFeed = ({ lead }) => (
     </div>
 );
 
-const LeadStages = ({ allStages, currentStageName, onStatusChange, onStageChange }) => {
+const LeadStages = ({ allStages, currentStageName, onStatusChange, onStageChange, lead }) => {
     const [notResponding, setNotResponding] = useState(false);
+    const navigate = useNavigate();
 
     const sortedStages = [...allStages].sort((a, b) => a.sortOrder - b.sortOrder);
     const currentStageIndex = sortedStages.findIndex(stage => stage.name === currentStageName);
+    const currentStage = sortedStages[currentStageIndex];
 
     const handleBack = () => {
         if (currentStageIndex > 0) {
@@ -84,6 +86,14 @@ const LeadStages = ({ allStages, currentStageName, onStatusChange, onStageChange
 
     const handleLost = () => onStatusChange('LOST');
     const handleCompleted = () => onStatusChange('ACTIVE');
+
+    const handleCreateQuotation = () => {
+        navigate('/sales/quotations/new', { state: { lead } });
+    };
+
+    const handleCreateSaleOrder = () => {
+        navigate('/sales/orders/new', { state: { lead } });
+    };
 
     return (
         <div className="p-6 bg-card rounded-lg shadow-sm space-y-8">
@@ -116,6 +126,16 @@ const LeadStages = ({ allStages, currentStageName, onStatusChange, onStageChange
                         Mark as "Not Responding"
                     </label>
                     <div className="flex flex-wrap items-center gap-2 flex-1 justify-end">
+                        {currentStage?.moveTo === 'Quotation' && (
+                            <button onClick={handleCreateQuotation} className="btn-primary flex items-center gap-1 bg-purple-600 hover:bg-purple-700">
+                                Create Quotation <ArrowRight size={16} />
+                            </button>
+                        )}
+                        {currentStage?.moveTo === 'Sale Order' && (
+                            <button onClick={handleCreateSaleOrder} className="btn-primary flex items-center gap-1 bg-orange-600 hover:bg-orange-700">
+                                Create Sale Order <ArrowRight size={16} />
+                            </button>
+                        )}
                         <button onClick={handleBack} disabled={currentStageIndex <= 0} className="btn-secondary flex items-center gap-1 disabled:opacity-50">
                             <ArrowLeftCircle size={16} /> Back
                         </button>
@@ -447,7 +467,7 @@ const LeadInfo = () => {
                     {activeSidebarTab === 'Activity' && <ActivityFeed lead={lead} />}
                     {activeSidebarTab === 'Lead Stages' && (
                         <div>
-                            <LeadStages allStages={leadStages} currentStageName={lead.currentStageName} onStatusChange={handleStatusUpdate} onStageChange={handleStageUpdate} />
+                            <LeadStages allStages={leadStages} currentStageName={lead.currentStageName} onStatusChange={handleStatusUpdate} onStageChange={handleStageUpdate} lead={lead} />
                             <ActionGrid onNewTaskClick={handleOpenNewTask} onNewEventClick={handleOpenNewEvent} onLogCallClick={handleOpenLogCall} onEmailClick={handleOpenEmailForm} />
                         </div>
                     )}

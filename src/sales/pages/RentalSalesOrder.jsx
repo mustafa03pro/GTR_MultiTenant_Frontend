@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import { Plus, Loader2, User, Monitor } from 'lucide-react';
+import { Plus, Loader2, User, Monitor, Edit, Trash2 } from 'lucide-react';
 
 const API_URL = import.meta.env.VITE_API_BASE_URL;
 
@@ -12,9 +12,13 @@ const getStatusColor = (status) => {
         case 'ACCEPTED': return 'text-green-600 bg-green-100';
         case 'REJECTED': return 'text-red-600 bg-red-100';
         case 'INVOICED': return 'text-purple-600 bg-purple-100';
+        case 'RENTAL_INVOICED': return 'text-purple-600 bg-purple-100';
+        case 'CANCELLED': return 'text-orange-600 bg-orange-100';
         default: return 'text-gray-600 bg-gray-100';
     }
 };
+
+import PaymentScheduleModal from '../components/PaymentScheduleModal';
 
 const RentalSalesOrder = () => {
     const navigate = useNavigate();
@@ -22,6 +26,10 @@ const RentalSalesOrder = () => {
     const [employees, setEmployees] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+
+    // Modal State
+    const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+    const [selectedOrder, setSelectedOrder] = useState(null);
 
     // Filters
     const [filters, setFilters] = useState({
@@ -108,6 +116,12 @@ const RentalSalesOrder = () => {
         const { name, value } = e.target;
         setFilters(prev => ({ ...prev, [name]: value }));
         setCurrentPage(0);
+    };
+
+    const handleOpenPaymentSchedule = (order) => {
+        console.log("Setting selected order:", order);
+        setSelectedOrder(order);
+        setIsPaymentModalOpen(true);
     };
 
     const handleDelete = async (id) => {
@@ -218,7 +232,7 @@ const RentalSalesOrder = () => {
                                         <tr key={order.id} className="border-b hover:bg-gray-50 text-gray-700">
                                             <td className="px-4 py-2 border-r">{currentPage * pageSize + index + 1}</td>
                                             <td className="px-4 py-2 border-r">{order.orderDate ? new Date(order.orderDate).toLocaleDateString() : '-'}</td>
-                                            <td className="px-4 py-2 border-r text-sky-600 cursor-pointer hover:underline font-medium" onClick={() => navigate(`/sales/rental-sales-orders/edit/${order.id}`)}>{order.orderNumber}</td>
+                                            <td className="px-4 py-2 border-r text-sky-600 cursor-pointer hover:underline font-medium" onClick={() => navigate(`/sales/rental-sales-orders/${order.id}`)}>{order.orderNumber}</td>
                                             <td className="px-4 py-2 border-r">{order.shipmentDate ? new Date(order.shipmentDate).toLocaleDateString() : '-'}</td>
                                             <td className="px-4 py-2 border-r">{order.reference || '-'}</td>
                                             <td className="px-4 py-2 border-r">{order.customerParty?.companyName || order.customerName || 'N/A'}</td>
@@ -226,10 +240,16 @@ const RentalSalesOrder = () => {
                                                 <span className={`px-2 py-0.5 rounded text-[10px] ${getStatusColor(order.status)}`}>{order.status}</span>
                                             </td>
                                             <td className="px-4 py-2 border-r font-medium text-right">AED {order.netTotal?.toLocaleString('en-AE', { minimumFractionDigits: 2 }) || '0.00'}</td>
-                                            <td className="px-4 py-2 border-r text-right">AED 0.00</td> {/* Placeholder for now */}
-                                            <td className="px-4 py-2 border-r text-right">AED {order.netTotal?.toLocaleString('en-AE', { minimumFractionDigits: 2 }) || '0.00'}</td> {/* Placeholder assuming full balance */}
+                                            <td className="px-4 py-2 border-r text-right">AED 0.00</td>
+                                            <td className="px-4 py-2 border-r text-right">AED {order.netTotal?.toLocaleString('en-AE', { minimumFractionDigits: 2 }) || '0.00'}</td>
                                             <td className="px-4 py-2 border-r text-center">
-                                                <button className="border border-gray-300 bg-white px-2 py-1 text-[10px] rounded hover:bg-gray-50">Payment Schedule</button>
+                                                <div className="flex flex-col gap-1 items-center">
+                                                    <button onClick={() => handleOpenPaymentSchedule(order)} className="border border-gray-300 bg-white px-2 py-1 text-[10px] rounded hover:bg-gray-50 w-full">Payment Schedule</button>
+                                                    <div className="flex gap-1 w-full">
+                                                        <button onClick={() => navigate(`/sales/rental-sales-orders/edit/${order.id}`)} className="flex-1 bg-blue-50 text-blue-600 border border-blue-200 px-2 py-1 text-[10px] rounded hover:bg-blue-100 flex justify-center items-center gap-1"><Edit size={12} /> Update</button>
+                                                        <button onClick={() => handleDelete(order.id)} className="flex-1 bg-red-50 text-red-600 border border-red-200 px-2 py-1 text-[10px] rounded hover:bg-red-100 flex justify-center items-center gap-1"><Trash2 size={12} /> Delete</button>
+                                                    </div>
+                                                </div>
                                             </td>
                                             <td className="px-4 py-2 text-center space-y-1">
                                                 <button className="w-full bg-gray-800 text-white px-2 py-1 text-[10px] rounded hover:bg-gray-700">Add DO</button>
@@ -243,6 +263,12 @@ const RentalSalesOrder = () => {
                     </div>
                 </div>
             </div>
+
+            <PaymentScheduleModal
+                isOpen={isPaymentModalOpen}
+                onClose={() => setIsPaymentModalOpen(false)}
+                rentalSalesOrder={selectedOrder}
+            />
         </div>
     );
 };

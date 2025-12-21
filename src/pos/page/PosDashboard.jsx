@@ -22,6 +22,7 @@ import SalesView from './SalesView';
 import InventoryView from './InventoryView';
 import PosDashboardView from './PosDashboardView';
 import ReportsView from './ReportsView';
+import { constructImageUrl } from '../sales/utils';
 
 
 const navLinks = [
@@ -37,11 +38,10 @@ const navLinks = [
 const NavItem = ({ item, isActive, onClick }) => (
     <button
         onClick={onClick}
-        className={`flex items-center px-4 py-2.5 text-sm font-medium rounded-lg transition-colors w-full text-left ${
-            isActive
-                ? 'bg-blue-600 text-white shadow-sm'
-                : 'text-slate-600 hover:bg-slate-200'
-        }`}
+        className={`flex items-center px-4 py-2.5 text-sm font-medium rounded-lg transition-colors w-full text-left ${isActive
+            ? 'bg-blue-600 text-white shadow-sm'
+            : 'text-slate-600 hover:bg-slate-200'
+            }`}
     >
         <item.icon className="h-5 w-5 mr-3 flex-shrink-0" />
         <span>{item.name}</span>
@@ -60,21 +60,21 @@ const SidebarContent = ({ activeItem, setActiveItem, onLinkClick, isSuperAdmin }
     const fetchTenantLogo = useCallback(async () => {
         try {
             const token = localStorage.getItem('token');
-            const response = await axios.get(`${API_URL}/pos/tenant/current`, {
+            const response = await axios.get(`${API_URL}/company-info`, {
                 headers: { Authorization: `Bearer ${token}` }
             });
 
-            if (response.data && response.data.logoImgUrl) {
-                setTenantName(response.data.name || 'POS System');
-                setLogoImgUrl(response.data.logoImgUrl);
-                setTenantLogo(`${response.data.logoImgUrl}`); // Correct URL
+            if (response.data && response.data.logoUrl) {
+                setTenantName(response.data.companyName || 'POS System');
+                setLogoImgUrl(response.data.logoUrl);
+                setTenantLogo(constructImageUrl(response.data.logoUrl));
             } else {
                 setTenantLogo(null);
                 setLogoImgUrl(null);
-                setTenantName('POS System');
+                setTenantName(response.data?.companyName || 'POS System');
             }
         } catch (error) {
-            console.error("Could not fetch tenant info", error);
+            console.error("Could not fetch company info", error);
             setLogoImgUrl(null);
             setTenantLogo(null);
         }
@@ -106,27 +106,23 @@ const SidebarContent = ({ activeItem, setActiveItem, onLinkClick, isSuperAdmin }
         <div className="flex flex-col h-full bg-white">
             <div className="p-4 border-b border-slate-200 flex-shrink-0">
                 <Link to="/pos-dashboard" className="flex items-center gap-3">
-                    {tenantLogo ? (
-                        <img src={tenantLogo} alt="Logo" className="h-8 w-auto object-contain"  />
-                    ) : (
-                        <Sparkles className="h-7 w-7 text-blue-600" />
-                    )}
+                    <Sparkles className="h-7 w-7 text-blue-600" />
                     <span className="font-bold text-xl text-slate-800">{tenantName}</span>
                 </Link>
                 <div className='ml-2 text-sm text-gray-500'>{new Date().toLocaleDateString()}</div>
             </div>
 
-            
+
             <nav className="flex-1 px-4 py-4 space-y-2 overflow-y-auto">
                 {navLinks.map((item) => (
-                    <NavItem 
-                        key={item.name} 
-                        item={item} 
+                    <NavItem
+                        key={item.name}
+                        item={item}
                         isActive={activeItem === item.name}
                         onClick={() => {
                             setActiveItem(item.name);
                             if (onLinkClick) onLinkClick();
-                        }} 
+                        }}
                     />
                 ))}
                 {isSuperAdmin && (
@@ -171,7 +167,7 @@ const PosDashboard = () => {
     const setActiveItem = (itemName) => {
         setSearchParams({ view: itemName });
     };
-  
+
     useEffect(() => {
         if (!searchParams.get('view')) {
             setSearchParams({ view: 'Dashboard' }, { replace: true });
@@ -237,11 +233,11 @@ const PosDashboard = () => {
                             transition={{ type: 'spring', stiffness: 300, damping: 30 }}
                             className="fixed top-0 left-0 h-full w-64 z-30"
                         >
-                            <SidebarContent 
-                                activeItem={activeItem} 
-                                setActiveItem={setActiveItem} 
+                            <SidebarContent
+                                activeItem={activeItem}
+                                setActiveItem={setActiveItem}
                                 isSuperAdmin={isSuperAdmin}
-                                onLinkClick={() => setSidebarOpen(false)} 
+                                onLinkClick={() => setSidebarOpen(false)}
                             />
                         </motion.div>
                     </>

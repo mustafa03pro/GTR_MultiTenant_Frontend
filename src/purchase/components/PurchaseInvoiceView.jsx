@@ -31,14 +31,37 @@ const PurchaseInvoiceView = () => {
   const [showMore, setShowMore] = useState(false);
   const [tenantInfo, setTenantInfo] = useState({ name: 'Transcold Air conditioner spare parts trading llc', address: 'Abu Dhabi', logo: '/logo.png' }); // Placeholder
 
+  const [supplierInfo, setSupplierInfo] = useState(null);
+
   useEffect(() => {
     if (!id) return;
     const load = async () => {
       setLoading(true);
       try {
         const token = localStorage.getItem('token');
-        const res = await axios.get(`${API_URL}/purchases/invoices/${id}`, { headers: { Authorization: `Bearer ${token}` } });
-        setInvoice(res.data);
+        const headers = { Authorization: `Bearer ${token}` };
+        
+        const res = await axios.get(`${API_URL}/purchases/invoices/${id}`, { headers });
+        const data = res.data;
+        setInvoice(data);
+
+        // Fetch Tenant Info
+        const tenantId = localStorage.getItem('tenantId');
+        if (tenantId) {
+             try {
+                const tRes = await axios.get(`${API_URL}/tenants/${tenantId}`, { headers });
+                setTenantInfo(tRes.data);
+             } catch (e) { console.warn(e); }
+        }
+
+        // Fetch Supplier Info
+        if (data.supplierId) {
+             try {
+                const sRes = await axios.get(`${API_URL}/parties/${data.supplierId}`, { headers });
+                setSupplierInfo(sRes.data);
+             } catch (e) { console.warn(e); }
+        }
+
       } catch (err) {
         console.error('Failed to load Invoice', err);
         setError('Unable to load purchase invoice.');
@@ -51,6 +74,22 @@ const PurchaseInvoiceView = () => {
 
   const handlePrint = () => {
     window.print();
+  };
+
+  const handleConvertToPayment = async () => {
+    if(!window.confirm('Are you sure you want to convert this bill to a payment?')) return;
+    try {
+      setLoading(true); // temporary lock
+      const token = localStorage.getItem('token');
+      const res = await axios.post(`${API_URL}/purchases/invoices/${id}/convert-to-payment`, {}, {
+         headers: { Authorization: `Bearer ${token}` }
+      });
+      navigate(`/purchase-dashboard/payments/edit/${res.data.id}`);
+    } catch (err) {
+      console.error(err);
+      alert('Failed to convert to payment: ' + (err.response?.data?.message || err.message));
+      setLoading(false); 
+    }
   };
 
   if (loading) return <div className="flex justify-center items-center h-screen"><Loader className="animate-spin text-blue-600" size={40} /></div>;
@@ -118,7 +157,8 @@ const PurchaseInvoiceView = () => {
                  </button>
                  {showMore && (
                      <div className="absolute top-full left-0 mt-1 w-48 bg-white border rounded shadow-lg py-1 z-20 text-xs text-slate-700" onMouseLeave={() => setShowMore(false)}>
-                         <button onClick={() => navigate('/purchase-dashboard/payments/new', { state: { supplierId: invoice.supplierId, invoiceId: invoice.id } })} className="block w-full text-left px-4 py-2 hover:bg-slate-100">Make Payment</button>
+                         {/* <button onClick={() => navigate('/purchase-dashboard/payments/new', { state: { supplierId: invoice.supplierId, invoiceId: invoice.id } })} className="block w-full text-left px-4 py-2 hover:bg-slate-100">Make Payment</button> */}
+                         <button onClick={handleConvertToPayment} className="block w-full text-left px-4 py-2 hover:bg-slate-100 text-green-600 font-medium">Convert to Payment</button>
                      </div>
                  )}
              </div>
@@ -135,13 +175,18 @@ const PurchaseInvoiceView = () => {
          {/* Letterhead Header Section */}
          <div className="flex justify-between items-start mb-8 pb-4 border-b-2 border-slate-800">
              <div className="flex gap-4 items-center">
-                 <div className="w-16 h-16 bg-slate-100 flex items-center justify-center rounded">
-                    <img src="/logo-placeholder.png" alt="Logo" className="max-w-full max-h-full opacity-50" onError={(e) => e.target.style.display='none'} />
-                    <span className="text-xs text-slate-400">Logo</span>
-                 </div>
+                 {/* Logo */}
+                 {tenantInfo.logo && (
+                     <div className="w-16 h-16 bg-slate-100 flex items-center justify-center rounded">
+                        <img src={tenantInfo.logo.startsWith('/') ? tenantInfo.logo : `${API_URL}/uploads/${tenantInfo.logo}`} alt="Logo" className="max-w-full max-h-full" onError={(e) => e.target.style.display='none'} />
+                     </div>
+                 )}
                  <div>
-                     <h1 className="text-xl font-bold uppercase tracking-wide">{tenantInfo.name}</h1>
-                     <p className="text-sm font-medium text-slate-600">{tenantInfo.address}</p>
+                     <h1 className="text-xl font-bold uppercase tracking-wide">{tenantInfo.companyName || tenantInfo.name}</h1>
+                     <p className="text-sm font-medium text-slate-600">
+                         {tenantInfo.address || tenantInfo.location || ''}<br/>
+                         {tenantInfo.email && <span className='lowercase'>{tenantInfo.email}</span>}
+                     </p>
                  </div>
              </div>
          </div>
@@ -153,6 +198,18 @@ const PurchaseInvoiceView = () => {
                      <div className="bg-slate-50 px-3 py-1 font-semibold text-slate-700 border-r border-slate-200">Bill No.</div>
                      <div className="px-3 py-1 font-bold text-slate-900">: {invoice.billNumber}</div>
                  </div>
+                 {invoice.billLedger && (
+                   <div className="grid grid-cols-[120px_1fr] border-b border-slate-200">
+                       <div className="bg-slate-50 px-3 py-1 font-semibold text-slate-700 border-r border-slate-200">Bill Ledger</div>
+                       <div className="px-3 py-1">: {invoice.billLedger}</div>
+                   </div>
+                 )}
+                 {invoice.billType && (
+                   <div className="grid grid-cols-[120px_1fr] border-b border-slate-200">
+                       <div className="bg-slate-50 px-3 py-1 font-semibold text-slate-700 border-r border-slate-200">Bill Type</div>
+                       <div className="px-3 py-1">: {invoice.billType}</div>
+                   </div>
+                 )}
                  <div className="grid grid-cols-[120px_1fr] border-b border-slate-200">
                      <div className="bg-slate-50 px-3 py-1 font-semibold text-slate-700 border-r border-slate-200">Bill Date</div>
                      <div className="px-3 py-1">: {invoice.billDate ? new Date(invoice.billDate).toLocaleDateString() : '-'}</div>
@@ -177,7 +234,7 @@ const PurchaseInvoiceView = () => {
              
              <div className="text-right">
                  <h2 className="text-3xl font-bold text-slate-900 uppercase mb-1">Purchase Bill</h2>
-                 <p className="text-sm font-bold text-slate-600">TRN : 123456789101111</p>
+                 <p className="text-sm font-bold text-slate-600">TRN : {tenantInfo.trnNumber || tenantInfo.taxId || '-'}</p>
              </div>
          </div>
 
@@ -185,12 +242,18 @@ const PurchaseInvoiceView = () => {
          <div className="mb-8">
              <div className="font-bold text-slate-800 border-b border-slate-300 mb-2 pb-1">Supplier Details</div>
              <div className="bg-slate-50 p-3 border rounded text-sm">
-                 <div className="font-bold text-lg">{invoice.supplierName || 'Unknown Supplier'}</div>
-                 {/* Address from supplier object if available, backend DTO only provided name? 
-                     Typically we fetch full supplier details or backend provides it. 
-                     Assuming mapped in DTO or we might need to fetch separately if critical, 
-                     but DTO has supplierName. We'll show just name for now if address missing in DTO response. */}
-                 <div className="text-slate-600 whitespace-pre-wrap">Address information not loaded</div>
+                 <div className="font-bold text-lg">{supplierInfo ? (supplierInfo.companyName || supplierInfo.name) : invoice.supplierName}</div>
+                 <div className="text-slate-600 whitespace-pre-wrap">
+                    {supplierInfo ? (
+                        <>
+                           {supplierInfo.addressLine1} {supplierInfo.addressLine2}<br/>
+                           {supplierInfo.city} {supplierInfo.state} {supplierInfo.country}<br/>
+                           {supplierInfo.phone && <>Ph: {supplierInfo.phone}<br/></>}
+                           {supplierInfo.email && <>{supplierInfo.email}</>}
+                        </>
+                    ) : 'Address information not loaded'}
+                 </div>
+                 <div className="mt-1 text-slate-500">TRN: {supplierInfo ? (supplierInfo.trnNumber || supplierInfo.taxId) : '-'}</div>
              </div>
          </div>
 

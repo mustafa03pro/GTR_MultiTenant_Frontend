@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import { Plus, Edit, Trash2, Loader2, Search, ChevronLeft, ChevronRight, Eye, User, Monitor } from 'lucide-react';
+import { Plus, Edit, Trash2, Loader2, Search, ChevronLeft, ChevronRight, Eye, User, Monitor, Repeat } from 'lucide-react';
 
 const API_URL = import.meta.env.VITE_API_BASE_URL;
 
@@ -17,12 +17,20 @@ const getStatusColor = (status) => {
     }
 };
 
+import FollowUpModal from '../components/FollowUpModal';
+import FollowUpHistoryModal from '../components/FollowUpHistoryModal';
+
 const Quotation = () => {
     const navigate = useNavigate();
     const [quotations, setQuotations] = useState([]);
     const [employees, setEmployees] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+
+    // Follow Up Modals State
+    const [showFollowUp, setShowFollowUp] = useState(false);
+    const [showHistory, setShowHistory] = useState(false);
+    const [selectedQuotationId, setSelectedQuotationId] = useState(null);
 
     // Filters
     const [filters, setFilters] = useState({
@@ -55,20 +63,22 @@ const Quotation = () => {
             const params = {
                 page: currentPage,
                 size: pageSize,
-                search: filters.customerName, // Using customer name as general search for now
-                // Add other filter params if backend supports them
-                // fromDate: filters.fromDate,
-                // toDate: filters.toDate,
-                // status: filters.status !== 'All' ? filters.status : null,
-                // salespersonId: filters.teamMember
+                customerName: filters.customerName,
+                startDate: filters.fromDate || null,
+                endDate: filters.toDate || null,
+                status: filters.status !== 'All' ? filters.status : null,
+                quotationType: filters.type !== 'All' ? filters.type : null,
+                salespersonId: filters.teamMember || null
             };
             const response = await axios.get(`${API_URL}/sales/quotations`, { params, ...authHeaders });
             let fetchedQuotations = response.data.content || [];
 
             // Extract unique customer IDs
+            // Extract unique customer IDs
             const customerIds = [...new Set(fetchedQuotations.map(q => q.customerId).filter(id => id))];
 
             // Fetch party details for each customer ID
+            let partyMap = {};
             if (customerIds.length > 0) {
                 const partyPromises = customerIds.map(id =>
                     axios.get(`${API_URL}/parties/${id}`, authHeaders)
@@ -77,17 +87,39 @@ const Quotation = () => {
                 );
 
                 const parties = await Promise.all(partyPromises);
-                const partyMap = parties.reduce((acc, curr) => {
+                partyMap = parties.reduce((acc, curr) => {
                     if (curr.data) acc[curr.id] = curr.data;
                     return acc;
                 }, {});
-
-                // Merge party details into quotations
-                fetchedQuotations = fetchedQuotations.map(q => ({
-                    ...q,
-                    customerParty: partyMap[q.customerId] || q.customerParty // Fallback to existing if fetch fails or not found
-                }));
             }
+
+            // Fetch Follow Ups for each quotation to get the latest date
+            const followUpPromises = fetchedQuotations.map(q =>
+                axios.get(`${API_URL}/sales/followups/by-quotation/${q.id}`, authHeaders)
+                    .then(res => {
+                        const history = res.data || [];
+                        if (history.length > 0) {
+                            // Sort descending by id to get latest entry
+                            const latest = history.sort((a, b) => b.id - a.id)[0];
+                            return { id: q.id, nextFollowupDate: latest.nextFollowupDate };
+                        }
+                        return { id: q.id, nextFollowupDate: null };
+                    })
+                    .catch(err => ({ id: q.id, nextFollowupDate: null }))
+            );
+
+            const followUpResults = await Promise.all(followUpPromises);
+            const followUpMap = followUpResults.reduce((acc, curr) => {
+                acc[curr.id] = curr.nextFollowupDate;
+                return acc;
+            }, {});
+
+            // Merge details into quotations
+            fetchedQuotations = fetchedQuotations.map(q => ({
+                ...q,
+                customerParty: partyMap[q.customerId] || q.customerParty, // Fallback to existing if fetch fails or not found
+                nextFollowupDate: followUpMap[q.id] || null
+            }));
 
             setQuotations(fetchedQuotations);
             setTotalPages(response.data.totalPages);
@@ -130,6 +162,16 @@ const Quotation = () => {
 
     const handleView = (id) => {
         navigate(`/sales/quotations/${id}`);
+    };
+
+    const openFollowUp = (id) => {
+        setSelectedQuotationId(id);
+        setShowFollowUp(true);
+    };
+
+    const openHistory = (id) => {
+        setSelectedQuotationId(id);
+        setShowHistory(true);
     };
 
     return (
@@ -189,8 +231,9 @@ const Quotation = () => {
                                 onChange={handleFilterChange}
                             >
                                 <option value="All">All</option>
-                                <option value="WITH_DISCOUNT">With Discount</option>
                                 <option value="WITHOUT_DISCOUNT">Without Discount</option>
+                                <option value="WITH_DISCOUNT_AT_ITEM_LEVEL">Discount at Item Level</option>
+                                <option value="WITH_DISCOUNT_AT_ORDER_LEVEL">Discount at Order Level</option>
                             </select>
                         </div>
                     </div>
@@ -264,7 +307,7 @@ const Quotation = () => {
                                 <tr>
                                     <th className="px-4 py-3 border-r w-16">S.No.</th>
                                     <th className="px-4 py-3 border-r">Date</th>
-                                    <th className="px-4 py-3 border-r">Quotation Status</th>
+                                    <th className="px-4 py-3 border-r">Quotation Type</th>
                                     <th className="px-4 py-3 border-r">Follow Up</th>
                                     <th className="px-4 py-3 border-r">Next Followup Date</th>
                                     <th className="px-4 py-3 border-r">Quotation#</th>
@@ -289,10 +332,10 @@ const Quotation = () => {
                                         <tr key={q.id} className="border-b hover:bg-gray-50 text-gray-700">
                                             <td className="px-4 py-2 border-r">{currentPage * pageSize + index + 1}</td>
                                             <td className="px-4 py-2 border-r">{new Date(q.quotationDate).toLocaleDateString()}</td>
-                                            <td className="px-4 py-2 border-r"></td>
+                                            <td className="px-4 py-2 border-r">{q.quotationType || '-'}</td>
                                             <td className="px-4 py-2 border-r space-y-1">
-                                                <button className="flex items-center gap-1 bg-green-500 hover:bg-green-600 text-white px-2 py-0.5 rounded text-[10px] w-full justify-center transition-colors"><User size={10} /> Follow Up</button>
-                                                <button className="flex items-center gap-1 bg-sky-500 hover:bg-sky-600 text-white px-2 py-0.5 rounded text-[10px] w-full justify-center transition-colors"><Monitor size={10} /> View History</button>
+                                                <button onClick={() => openFollowUp(q.id)} className="flex items-center gap-1 bg-green-500 hover:bg-green-600 text-white px-2 py-0.5 rounded text-[10px] w-full justify-center transition-colors"><User size={10} /> Follow Up</button>
+                                                <button onClick={() => openHistory(q.id)} className="flex items-center gap-1 bg-sky-500 hover:bg-sky-600 text-white px-2 py-0.5 rounded text-[10px] w-full justify-center transition-colors"><Monitor size={10} /> View History</button>
                                             </td>
                                             <td className="px-4 py-2 border-r"></td>
                                             <td className="px-4 py-2 border-r">
@@ -316,6 +359,7 @@ const Quotation = () => {
                                             <td className="px-4 py-2 border-r text-right">AED {q.netTotal.toLocaleString('en-AE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                                             <td className="px-4 py-2 text-center border-r">
                                                 <div className="flex justify-center gap-1">
+                                                    <button onClick={() => navigate(`/sales/quotations/revise/${q.id}`)} className="p-1.5 bg-yellow-500 text-white rounded hover:bg-yellow-600 shadow-sm" title="Revise"><Repeat size={12} /></button>
                                                     <button onClick={() => navigate(`/sales/quotations/edit/${q.id}`)} className="p-1.5 bg-gray-700 text-white rounded hover:bg-gray-600 shadow-sm" title="Edit"><Edit size={12} /></button>
                                                     <button onClick={() => handleDelete(q.id)} className="p-1.5 bg-red-500 text-white rounded hover:bg-red-600 shadow-sm" title="Delete"><Trash2 size={12} /></button>
                                                 </div>
@@ -340,6 +384,22 @@ const Quotation = () => {
                     )}
                 </div>
             </div>
+
+            {/* Modals */}
+            <FollowUpModal
+                isOpen={showFollowUp}
+                onClose={() => setShowFollowUp(false)}
+                quotationId={selectedQuotationId}
+                onSuccess={() => {
+                    // Refresh data or just close
+                    fetchQuotations();
+                }}
+            />
+            <FollowUpHistoryModal
+                isOpen={showHistory}
+                onClose={() => setShowHistory(false)}
+                quotationId={selectedQuotationId}
+            />
         </div>
     );
 };

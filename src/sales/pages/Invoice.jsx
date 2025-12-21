@@ -28,8 +28,8 @@ const Invoice = () => {
 
     const [filters, setFilters] = useState({
         customerName: '',
-        fromDate: new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0], // First day of current month
-        toDate: new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).toISOString().split('T')[0], // Last day of current month
+        fromDate: '', // First day of current month
+        toDate: '', // Last day of current month
         status: 'All',
         teamMember: ''
     });
@@ -287,8 +287,8 @@ const Invoice = () => {
                                                 key={i}
                                                 onClick={() => setCurrentPage(i)}
                                                 className={`w-8 h-8 flex items-center justify-center rounded border ${currentPage === i
-                                                        ? 'bg-primary text-white border-primary'
-                                                        : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
+                                                    ? 'bg-primary text-white border-primary'
+                                                    : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
                                                     }`}
                                             >
                                                 {i + 1}

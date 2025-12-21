@@ -3,16 +3,22 @@ const API_URL = import.meta.env.VITE_API_BASE_URL;
 export const formatPrice = (cents) => `AED ${(cents / 100).toFixed(2)}`;
 
 export const constructImageUrl = (relativeUrl) => {
-    if (!relativeUrl || relativeUrl.startsWith('data:') || relativeUrl.startsWith('http')) {
+    if (!relativeUrl) return '';
+    if (relativeUrl.startsWith('data:') || relativeUrl.startsWith('http')) {
         return relativeUrl;
     }
-    // Assuming URL is like /uploads/{tenantId}/{subfolder}/{filename}
-    // And we need to convert it to /api/files/view/{tenantId}/{subfolder}/{filename}
-    const pathParts = relativeUrl.split('/').filter(p => p);
-    if (pathParts[0] === 'uploads' && pathParts.length >= 4) {
-        return `${API_URL}/pos/uploads/view/${pathParts.slice(1).join('/')}`;
+
+    // Backend returns paths relative to the uploads root (e.g., "tenantId/folder/file.ext")
+    // The view endpoint is /api/pos/uploads/view/**
+
+    const cleanPath = relativeUrl.startsWith('/') ? relativeUrl.slice(1) : relativeUrl;
+
+    // Handle potential legacy paths starting with 'uploads/'
+    if (cleanPath.startsWith('uploads/')) {
+        return `${API_URL}/pos/uploads/view/${cleanPath.replace('uploads/', '')}`;
     }
-    return `${API_URL}${relativeUrl}`;
+
+    return `${API_URL}/pos/uploads/view/${cleanPath}`;
 };
 
 export const formatVariantAttributes = (attributes) => {

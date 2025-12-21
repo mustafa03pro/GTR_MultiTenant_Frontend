@@ -7,10 +7,15 @@ const salesNavLinks = [
     { name: 'Dashboard', icon: LayoutDashboard, href: '/sales-dashboard', color: 'text-sky-500' },
     { name: 'Quotations', icon: ClipboardList, href: '/sales/quotations', color: 'text-yellow-500' },
     { name: 'Rental Quotations', icon: Package, href: '/sales/rental-quotations', color: 'text-orange-500' },
+    { name: 'Rental Recieved Item', icon: ClipboardList, href: '/sales/rental-item-received', color: 'text-green-500' },
     { name: 'Rental Sales Order', icon: ClipboardList, href: '/sales/rental-sales-orders', color: 'text-teal-500' },
     { name: 'Orders', icon: ShoppingCart, href: '/sales/orders', color: 'text-blue-500' },
-    { name: 'Proforma Invoice', icon: FileText, href: '/sales/proforma-invoices', color: 'text-indigo-500' },
+    { name: 'Delivery Orders', icon: Package, href: '/sales/delivery-orders', color: 'text-pink-500' },
+    { name: 'Proforma Invoice', icon: FileText, href: '/sales/proforma-invoices', color: 'text-cyan-500' },
+    { name: 'Rental Invoices', icon: FileText, href: '/sales/rental-invoices', color: 'text-indigo-500' },
     { name: 'Invoices', icon: FileText, href: '/sales/invoices', color: 'text-purple-500' },
+    { name: 'Received Amount', icon: FileText, href: '/sales/recieved-amounts', color: 'text-emerald-600' },
+    { name: 'Credit Notes', icon: FileText, href: '/sales/credit-notes', color: 'text-rose-500' },
     { name: 'Settings', icon: Settings, href: '/sales/settings', color: 'text-gray-500' },
 ];
 

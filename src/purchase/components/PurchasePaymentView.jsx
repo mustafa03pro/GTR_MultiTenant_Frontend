@@ -12,15 +12,37 @@ const PurchasePaymentView = () => {
   const [error, setError] = useState('');
   const [showMenu, setShowMenu] = useState(false);
 
+  const [tenantInfo, setTenantInfo] = useState(null);
+  const [supplierInfo, setSupplierInfo] = useState(null);
+
   useEffect(() => {
     const fetchPayment = async () => {
       setLoading(true);
       try {
         const token = localStorage.getItem('token');
-        const res = await axios.get(`${API_URL}/purchases/payments/${id}`, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        setPayment(res.data);
+        const headers = { Authorization: `Bearer ${token}` };
+        
+        const res = await axios.get(`${API_URL}/purchases/payments/${id}`, { headers });
+        const data = res.data;
+        setPayment(data);
+
+        // Fetch Tenant
+        const tenantId = localStorage.getItem('tenantId');
+        if (tenantId) {
+             try {
+                const tRes = await axios.get(`${API_URL}/tenants/${tenantId}`, { headers });
+                setTenantInfo(tRes.data);
+             } catch(e) { console.warn(e); }
+        }
+
+        // Fetch Supplier
+        if (data.supplierId) {
+             try {
+                const sRes = await axios.get(`${API_URL}/parties/${data.supplierId}`, { headers });
+                setSupplierInfo(sRes.data);
+             } catch(e) { console.warn(e); }
+        }
+
       } catch (err) {
         console.error('Failed to fetch payment', err);
         setError('Failed to load payment details.');
@@ -81,13 +103,40 @@ const PurchasePaymentView = () => {
          <div className="h-2 bg-green-600 w-full print:bg-green-600"></div>
          
          <div className="p-8 md:p-12 print:p-8">
+
+            {/* Tenant Header for Print */}
+            {tenantInfo && (
+                <div className="hidden print:flex justify-between items-start mb-8 pb-4 border-b-2 border-slate-800">
+                    <div className="flex gap-4 items-center">
+                        {tenantInfo.logo && (
+                            <div className="w-16 h-16 bg-slate-100 flex items-center justify-center rounded">
+                                <img src={tenantInfo.logo.startsWith('/') ? tenantInfo.logo : `${API_URL}/uploads/${tenantInfo.logo}`} alt="Logo" className="max-w-full max-h-full" onError={(e) => e.target.style.display='none'} />
+                            </div>
+                        )}
+                        <div>
+                            <h1 className="text-xl font-bold uppercase tracking-wide">{tenantInfo.companyName || tenantInfo.name}</h1>
+                            <p className="text-sm font-medium text-slate-600">
+                                {tenantInfo.address || tenantInfo.location || ''}<br/>
+                                {tenantInfo.email && <span className='lowercase'>{tenantInfo.email}</span>}
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            )}
             
             {/* Payment Header */}
             <div className="flex justify-between items-start mb-12">
                <div>
-                  <h2 className="text-xl font-bold text-gray-800 mb-1">{payment.supplierName}</h2>
-                  {/* Address could go here if available in DTO join */}
-                  <div className="text-sm text-gray-500">Abu Dhabi, UAE</div>
+                  <h2 className="text-xl font-bold text-gray-800 mb-1">{supplierInfo ? (supplierInfo.companyName || supplierInfo.name) : payment.supplierName}</h2>
+                  <div className="text-sm text-gray-500">
+                      {supplierInfo ? (
+                          <>
+                             {supplierInfo.addressLine1} {supplierInfo.addressLine2}<br/>
+                             {supplierInfo.city} {supplierInfo.state} {supplierInfo.country}
+                          </>
+                      ) : 'Abu Dhabi, UAE'}
+                  </div>
+                  {supplierInfo && supplierInfo.trnNumber && <div className="text-xs text-gray-500 mt-1">TRN: {supplierInfo.trnNumber}</div>}
                </div>
                <div className="text-right">
                    <h3 className="text-lg font-semibold text-gray-900 uppercase tracking-wider mb-2">Payment Made</h3>
@@ -162,16 +211,36 @@ const PurchasePaymentView = () => {
                             <td colSpan="2" className="py-4 text-center text-gray-400 italic">No specific bills allocated (Advance Payment)</td>
                         </tr>
                      )}
-                     
-                     {/* Excess Row if Applicable */}
-                     {payment.amountInExcess > 0 && (
-                         <tr className="border-b bg-green-50/50 text-green-800 print:bg-transparent print:text-black">
-                             <td className="py-3 px-4 font-medium italic">Amount in Excess (Unallocated)</td>
-                             <td className="py-3 px-4 text-right font-bold">{payment.amountInExcess.toFixed(2)}</td>
-                         </tr>
-                     )}
                   </tbody>
                </table>
+            </div>
+
+            {/* Payment Summary Box */}
+            <div className="flex justify-end mb-12">
+                <div className="w-full md:w-1/2 lg:w-1/3 bg-gray-50 border border-gray-200 rounded p-4 text-sm print:bg-transparent print:border-none print:w-1/2">
+                        <div className="flex justify-between py-2 border-b border-gray-200 print:border-gray-300">
+                            <span className="text-gray-600">Amount Paid</span>
+                            <span className="font-semibold">{(payment.amount || 0).toFixed(2)}</span>
+                        </div>
+                        {payment.taxDeducted && (
+                            <div className="flex justify-between py-2 border-b border-gray-200 print:border-gray-300 text-slate-600">
+                                <span>TDS Deducted ({payment.tdsSection})</span>
+                                <span>{(payment.tdsAmount || 0).toFixed(2)}</span>
+                            </div>
+                        )}
+                        <div className="flex justify-between py-2 border-b border-gray-200 print:border-gray-300">
+                            <span className="text-gray-600">Amount used for payments</span>
+                            <span className="text-gray-800">{(payment.amountUsedForPayments || payment.amountPaid || 0).toFixed(2)}</span>
+                        </div>
+                        <div className="flex justify-between py-2 border-b border-gray-200 print:border-gray-300">
+                            <span className="text-gray-600">Amount Refunded</span>
+                            <span className="text-gray-800">{(payment.amountRefunded || 0).toFixed(2)}</span> 
+                        </div>
+                        <div className="flex justify-between py-2">
+                            <span className="text-gray-600">Amount in excess</span>
+                            <span className="text-green-600 font-semibold">{(payment.amountInExcess || 0).toFixed(2)}</span>
+                        </div>
+                </div>
             </div>
 
             {/* Attachments - Hidden in Print */}

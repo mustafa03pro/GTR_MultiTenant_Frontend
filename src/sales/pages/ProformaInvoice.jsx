@@ -26,8 +26,8 @@ const ProformaInvoice = () => {
 
     const [filters, setFilters] = useState({
         customerName: '',
-        fromDate: new Date().toISOString().split('T')[0],
-        toDate: new Date(new Date().setDate(new Date().getDate() + 30)).toISOString().split('T')[0],
+        fromDate: '',
+        toDate: '',
         status: 'All',
         teamMember: ''
     });

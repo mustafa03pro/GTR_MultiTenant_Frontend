@@ -20,7 +20,7 @@ const Modal = ({ isOpen, onClose, title, children }) => {
 };
 
 const LeadStageForm = ({ item, onSave, onCancel, loading, locations }) => {
-    const [formData, setFormData] = useState({ name: '', isDefault: false, locationId: '' });
+    const [formData, setFormData] = useState({ name: '', isDefault: false, locationId: '', moveTo: '' });
 
     useEffect(() => {
         if (item) {
@@ -28,9 +28,10 @@ const LeadStageForm = ({ item, onSave, onCancel, loading, locations }) => {
                 name: item.name || '',
                 isDefault: item.isDefault || false,
                 locationId: item.locationId || '',
+                moveTo: item.moveTo || '',
             });
         } else {
-            setFormData({ name: '', isDefault: false, locationId: '' });
+            setFormData({ name: '', isDefault: false, locationId: '', moveTo: '' });
         }
     }, [item]);
 
@@ -56,6 +57,15 @@ const LeadStageForm = ({ item, onSave, onCancel, loading, locations }) => {
                     <option value="">Select Location</option>
                     {locations.map(loc => <option key={loc.id} value={loc.id}>{loc.name}</option>)}
                 </select>
+            </div>
+            <div>
+                <label htmlFor="moveTo" className="block text-sm font-medium text-foreground-muted">Move To (Action)</label>
+                <select id="moveTo" name="moveTo" value={formData.moveTo} onChange={handleChange} className="input mt-1 bg-background-muted border-border text-foreground">
+                    <option value="">Select Action</option>
+                    <option value="Quotation">Quotation</option>
+                    <option value="Sale Order">Sale Order</option>
+                </select>
+                <p className="text-xs text-foreground-muted mt-1">Select an action to trigger when this stage is reached.</p>
             </div>
             <div className="flex items-center gap-6 pt-2">
                 <label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" name="isDefault" checked={formData.isDefault} onChange={handleChange} className="h-4 w-4 rounded" /> Set as default stage</label>
@@ -187,6 +197,7 @@ const CrmLeadStage = ({ locationId }) => {
                             <th className="th-cell w-16">Order</th>
                             <th className="th-cell">Stage Name</th>
                             <th className="th-cell">Location</th>
+                            <th className="th-cell">Move To</th>
                             <th className="th-cell">Is Default</th>
                             <th className="th-cell w-24">Reorder</th>
                             <th className="th-cell w-48">Actions</th>
@@ -194,20 +205,27 @@ const CrmLeadStage = ({ locationId }) => {
                     </thead>
                     <tbody className="bg-card divide-y divide-border text-foreground-muted">
                         {loading ? (
-                            <tr><td colSpan="6" className="text-center py-10"><Loader className="animate-spin h-8 w-8 text-primary mx-auto" /></td></tr>
+                            <tr><td colSpan="7" className="text-center py-10"><Loader className="animate-spin h-8 w-8 text-primary mx-auto" /></td></tr>
                         ) : filteredData.length > 0 ? (
                             filteredData.map((item, index, arr) => (
                                 <tr key={item.id} className="hover:bg-background-muted transition-colors">
                                     <td className="td-cell font-medium">{item.sortOrder}</td>
                                     <td className="td-cell font-medium text-foreground">{item.name}</td>
                                     <td className="td-cell">{item.locationName || 'N/A'}</td>
+                                    <td className="td-cell">
+                                        {item.moveTo ? (
+                                            <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200">
+                                                {item.moveTo}
+                                            </span>
+                                        ) : '-'}
+                                    </td>
                                     <td className="td-cell">{item.isDefault ? <Star size={16} className="text-amber-500 fill-amber-400" title="Default Stage" /> : null}</td>
                                     <td className="td-cell"><div className="flex items-center gap-1"><button onClick={() => handleMove(item.id, 'up')} disabled={index === 0} className="p-1 disabled:opacity-30"><ArrowUp size={16} /></button><button onClick={() => handleMove(item.id, 'down')} disabled={index === arr.length - 1} className="p-1 disabled:opacity-30"><ArrowDown size={16} /></button></div></td>
                                     <td className="td-cell"><div className="flex items-center gap-2"><button onClick={() => handleSetDefault(item.id)} disabled={item.isDefault} className="btn-secondary btn-sm disabled:opacity-50">Set Default</button><button onClick={() => handleEdit(item)} className="text-primary hover:text-primary/80 p-1" title="Edit"><Edit size={16} /></button><button onClick={() => handleDelete(item.id)} className="text-red-500 hover:text-red-600 p-1" title="Delete"><Trash2 size={16} /></button></div></td>
                                 </tr>
                             ))
                         ) : (
-                            <tr><td colSpan="6" className="text-center py-10"><AlertCircle className="mx-auto h-12 w-12 text-foreground-muted/50" /><h3 className="mt-2 text-sm font-medium text-foreground">No lead stages found</h3><p className="mt-1 text-sm">Get started by adding a new lead stage.</p></td></tr>
+                            <tr><td colSpan="7" className="text-center py-10"><AlertCircle className="mx-auto h-12 w-12 text-foreground-muted/50" /><h3 className="mt-2 text-sm font-medium text-foreground">No lead stages found</h3><p className="mt-1 text-sm">Get started by adding a new lead stage.</p></td></tr>
                         )}
                     </tbody>
                 </table>

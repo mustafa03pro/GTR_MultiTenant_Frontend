@@ -24,9 +24,10 @@ const Orders = () => {
 
     // Filter states
     const [customerName, setCustomerName] = useState('');
-    const [fromDate, setFromDate] = useState('2025-01-01'); // Defaulting to 2025 as per screenshot suggestion
-    const [toDate, setToDate] = useState('2025-11-09');
-    const [selectedTeamMember, setSelectedTeamMember] = useState('Saleem Hyder');
+    const [fromDate, setFromDate] = useState(''); // Defaulting to 2025 as per screenshot suggestion
+    const [toDate, setToDate] = useState('');
+    const [selectedTeamMember, setSelectedTeamMember] = useState('');
+    const [employees, setEmployees] = useState([]);
 
     const [currentPage, setCurrentPage] = useState(0);
     const [pageSize, setPageSize] = useState(10);
@@ -34,16 +35,29 @@ const Orders = () => {
 
     const authHeaders = useMemo(() => ({ headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } }), []);
 
+    const fetchEmployees = async () => {
+        try {
+            const response = await axios.get(`${API_URL}/employees/all`, authHeaders);
+            setEmployees(response.data || []);
+        } catch (err) {
+            console.error("Failed to fetch employees", err);
+        }
+    };
+
+    useEffect(() => {
+        fetchEmployees();
+    }, []);
+
     const fetchOrders = useCallback(async () => {
         setLoading(true);
         try {
             const params = {
                 page: currentPage,
                 size: pageSize,
-                customerName: customerName,
-                startDate: fromDate,
-                endDate: toDate,
-                salesPerson: selectedTeamMember
+                customerName: customerName || undefined,
+                startDate: fromDate || undefined,
+                endDate: toDate || undefined,
+                salespersonId: selectedTeamMember || undefined
             };
             // Note: Ensure backend supports these new params. If not, filtering might happen client-side or be ignored.
             const response = await axios.get(`${API_URL}/sales/orders`, { params, ...authHeaders });
@@ -141,8 +155,10 @@ const Orders = () => {
                                     value={selectedTeamMember}
                                     onChange={(e) => setSelectedTeamMember(e.target.value)}
                                 >
-                                    <option value="Saleem Hyder">Saleem Hyder</option>
-                                    <option value="Other Member">Other Member</option>
+                                    <option value="">All Sales Persons</option>
+                                    {employees.map(e => (
+                                        <option key={e.id} value={e.id}>{e.firstName} {e.lastName}</option>
+                                    ))}
                                 </select>
                                 <div className="absolute inset-y-0 right-0 flex items-center px-2 pointer-events-none">
                                     <X className="h-3 w-3 text-gray-400 mr-1" />
@@ -237,9 +253,26 @@ const Orders = () => {
                                                 </td>
                                                 <td className="px-4 py-2 text-center min-w-[190px]">
                                                     <div className="flex flex-col gap-1 items-center">
-                                                        <button className="w-full bg-blue-600 hover:bg-blue-700 text-white text-[10px] py-1 px-2 rounded shadow-sm font-medium transition-colors">Add DO</button>
-                                                        <button className="w-full bg-cyan-600 hover:bg-cyan-700 text-white text-[10px] py-1 px-2 rounded shadow-sm font-medium transition-colors">Add Invoice From DO</button>
-                                                        <button className="w-full bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 text-[10px] py-1 px-2 rounded shadow-sm font-medium transition-colors">View History of DO</button>
+                                                        <div className="flex flex-col gap-1 items-center">
+                                                            <button
+                                                                onClick={() => navigate(`/sales/delivery-orders/new?salesOrderId=${order.id}`)}
+                                                                className="w-full bg-blue-600 hover:bg-blue-700 text-white text-[10px] py-1 px-2 rounded shadow-sm font-medium transition-colors"
+                                                            >
+                                                                Add DO
+                                                            </button>
+                                                            <button
+                                                                onClick={() => navigate(`/sales/invoices/new?salesOrderId=${order.id}`)}
+                                                                className="w-full bg-cyan-600 hover:bg-cyan-700 text-white text-[10px] py-1 px-2 rounded shadow-sm font-medium transition-colors"
+                                                            >
+                                                                Add Invoice From DO
+                                                            </button>
+                                                            <button
+                                                                onClick={() => navigate(`/sales/delivery-orders?salesOrderId=${order.id}`)}
+                                                                className="w-full bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 text-[10px] py-1 px-2 rounded shadow-sm font-medium transition-colors"
+                                                            >
+                                                                View History of DO
+                                                            </button>
+                                                        </div>
                                                     </div>
                                                 </td>
                                             </tr>

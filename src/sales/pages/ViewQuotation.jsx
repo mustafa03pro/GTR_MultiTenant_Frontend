@@ -17,6 +17,7 @@ const ViewQuotation = () => {
 
     const convertMenuRef = useRef(null);
     const moreMenuRef = useRef(null);
+    const attachmentRef = useRef(null);
 
     useEffect(() => {
         const fetchData = async () => {
@@ -96,6 +97,51 @@ const ViewQuotation = () => {
         }
     };
 
+    const handleCancelQuotation = async () => {
+        if (!window.confirm('Are you sure you want to mark this quotation as CANCELLED?')) return;
+        try {
+            await axios.patch(`${API_URL}/sales/quotations/status/by-number`, null, {
+                params: {
+                    quotationNumber: quotation.quotationNumber,
+                    status: 'CANCELLED'
+                },
+                headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+            });
+            // Update local state or reload
+            setQuotation(prev => ({ ...prev, status: 'CANCELLED' }));
+            setShowMoreMenu(false);
+        } catch (err) {
+            console.error("Failed to cancel quotation", err);
+            alert("Failed to update status");
+        }
+    };
+
+    const handleWhatsApp = () => {
+        const phoneNumber = quotation.customerParty?.phone || ''; // Assuming phone field
+        const text = `Hi, here is the quotation ${quotation.quotationNumber}.`;
+        window.open(`https://wa.me/${phoneNumber}?text=${encodeURIComponent(text)}`, '_blank');
+    };
+
+    const handleEmail = () => {
+        const email = quotation.customerParty?.email || '';
+        const subject = `Quotation ${quotation.quotationNumber}`;
+        const body = `Dear Customer,\n\nPlease find attached the quotation ${quotation.quotationNumber}.\n\nRegards,\n${company?.companyName || ''}`;
+        window.location.href = `mailto:${email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    };
+
+    const scrollToAttachments = () => {
+        if (attachmentRef.current) {
+            attachmentRef.current.scrollIntoView({ behavior: 'smooth' });
+        } else if (!quotation.attachments || quotation.attachments.length === 0) {
+            alert("No attachments found.");
+        }
+    };
+
+    const handlePrintLetterhead = () => {
+        // Logic to hide header/footer for letterhead printing could be added here via state/class
+        window.print();
+    };
+
     const formatAddress = (address) => {
         if (!address) return 'Address not available';
         if (typeof address === 'string') return address;
@@ -135,11 +181,11 @@ const ViewQuotation = () => {
             <div className="px-6 py-3 flex flex-wrap gap-2 items-center bg-white border-b print:hidden">
                 <button onClick={() => navigate(`/sales/quotations/edit/${id}`)} className="p-2 bg-[#5bc0de] text-white rounded hover:bg-[#46b8da]" title="Edit"><Edit size={16} /></button>
                 <button onClick={handleDownloadPdf} className="p-2 bg-[#d9534f] text-white rounded hover:bg-[#d43f3a]" title="PDF"><FileText size={16} /></button>
-                <button className="p-2 bg-[#5cb85c] text-white rounded hover:bg-[#4cae4c]" title="WhatsApp"><span className="font-bold text-xs">WA</span></button>
+                <button onClick={handleWhatsApp} className="p-2 bg-[#5cb85c] text-white rounded hover:bg-[#4cae4c]" title="WhatsApp"><span className="font-bold text-xs">WA</span></button>
                 <button onClick={() => window.print()} className="p-2 bg-[#0275d8] text-white rounded hover:bg-[#025aa5]" title="Print"><Printer size={16} /></button>
-                <button className="px-3 py-1.5 bg-[#0275d8] text-white rounded text-sm hover:bg-[#025aa5] flex items-center gap-1"><Printer size={14} /> Print On Letterhead</button>
-                <button className="p-2 bg-[#f0ad4e] text-white rounded hover:bg-[#eea236]" title="Email"><Mail size={16} /></button>
-                <button className="p-2 bg-[#aeb6bf] text-white rounded hover:bg-[#8e99a4]" title="Attachments"><Paperclip size={16} /></button>
+                <button onClick={handlePrintLetterhead} className="px-3 py-1.5 bg-[#0275d8] text-white rounded text-sm hover:bg-[#025aa5] flex items-center gap-1"><Printer size={14} /> Print On Letterhead</button>
+                <button onClick={handleEmail} className="p-2 bg-[#f0ad4e] text-white rounded hover:bg-[#eea236]" title="Email"><Mail size={16} /></button>
+                <button onClick={scrollToAttachments} className="p-2 bg-[#aeb6bf] text-white rounded hover:bg-[#8e99a4]" title="Attachments"><Paperclip size={16} /></button>
 
                 <div className="relative" ref={convertMenuRef}>
                     <button onClick={() => setShowConvertMenu(!showConvertMenu)} className="px-3 py-1.5 bg-[#333] text-white rounded text-sm hover:bg-[#222] flex items-center gap-1">
@@ -148,7 +194,8 @@ const ViewQuotation = () => {
                     {showConvertMenu && (
                         <div className="absolute top-full left-0 mt-1 w-40 bg-white border rounded shadow-lg z-10 text-sm">
                             <button className="block w-full text-left px-4 py-2 hover:bg-gray-100 text-[#0099cc]" onClick={() => navigate(`/sales/orders/new?quotationId=${id}`)}>Convert to Sale</button>
-                            <button className="block w-full text-left px-4 py-2 hover:bg-gray-100 text-[#0099cc]">Convert to Invoice</button>
+                            <button className="block w-full text-left px-4 py-2 hover:bg-gray-100 text-[#0099cc]" onClick={() => navigate(`/sales/invoices/new?quotationId=${id}`)}>Convert to Invoice</button>
+                            <button className="block w-full text-left px-4 py-2 hover:bg-gray-100 text-[#0099cc]" onClick={() => navigate(`/sales/proforma-invoices/new?quotationId=${id}`)}>Convert to Proforma Invoice</button>
                         </div>
                     )}
                 </div>
@@ -159,6 +206,9 @@ const ViewQuotation = () => {
                     </button>
                     {showMoreMenu && (
                         <div className="absolute top-full left-0 mt-1 w-40 bg-white border rounded shadow-lg z-10 text-sm">
+                            <button className="block w-full text-left px-4 py-2 hover:bg-gray-100 text-[#333]" onClick={() => navigate(`/sales/quotations/new?cloneId=${id}`)}>Clone</button>
+                            <button className="block w-full text-left px-4 py-2 hover:bg-gray-100 text-[#333]" onClick={handleCancelQuotation}>Mark as Cancelled</button>
+                            <div className="border-t my-1"></div>
                             <button className="block w-full text-left px-4 py-2 hover:bg-gray-100 text-red-600" onClick={() => {
                                 if (window.confirm('Delete this quotation?')) {
                                     // Delete logic
@@ -301,6 +351,20 @@ const ViewQuotation = () => {
                             </div>
                         </div>
                     </div>
+
+                    {/* Attachments Section */}
+                    {quotation.attachments && quotation.attachments.length > 0 && (
+                        <div className="mt-8 border-t pt-4" ref={attachmentRef}>
+                            <h3 className="font-bold text-sm mb-2">Attachments</h3>
+                            <div className="flex flex-wrap gap-2">
+                                {quotation.attachments.map((file, index) => (
+                                    <a key={index} href={`${API_URL}/sales/attachments/${file}`} target="_blank" rel="noreferrer" className="px-3 py-1 bg-gray-100 rounded text-blue-600 hover:underline text-xs flex items-center gap-1 border">
+                                        <Paperclip size={12} /> {file.split('/').pop()}
+                                    </a>
+                                ))}
+                            </div>
+                        </div>
+                    )}
 
                 </div>
             </div>

@@ -33,14 +33,46 @@ const PurchaseOrderView = () => {
   const [isLetterHead, setIsLetterHead] = useState(false);
   const [tenantInfo, setTenantInfo] = useState({ name: 'Transcold Air conditioner spare parts trading llc', address: 'Abu Dhabi', logo: '/logo.png' }); // Placeholder
 
+  const [supplierInfo, setSupplierInfo] = useState(null);
+
   useEffect(() => {
     if (!id) return;
     const load = async () => {
       setLoading(true);
       try {
         const token = localStorage.getItem('token');
-        const res = await axios.get(`${API_URL}/purchase/orders/${id}`, { headers: { Authorization: `Bearer ${token}` } });
-        setPo(res.data);
+        const headers = { Authorization: `Bearer ${token}` };
+        
+        // Load PO
+        const start = Date.now();
+        const res = await axios.get(`${API_URL}/purchase/orders/${id}`, { headers });
+        const data = res.data;
+        setPo(data);
+
+        // Fetch Tenant Info
+        const tenantId = localStorage.getItem('tenantId'); // Assuming stored
+        if (tenantId) {
+            try {
+                // Try fetching tenant details. Endpoint guess based on standard REST
+                const tRes = await axios.get(`${API_URL}/tenants/${tenantId}`, { headers });
+                setTenantInfo(tRes.data);
+            } catch (terr) {
+                console.warn('Failed to load tenant info, using defaults', terr);
+                // Keep default or try another endpoint like /auth/me if available
+                // setTenantInfo({ name: tenantId, address: '' }); 
+            }
+        }
+
+        // Fetch Supplier Info if ID exists
+        if (data.supplierId) {
+            try {
+                 const sRes = await axios.get(`${API_URL}/parties/${data.supplierId}`, { headers });
+                 setSupplierInfo(sRes.data);
+            } catch (serr) {
+                 console.warn('Failed to load supplier info', serr);
+            }
+        }
+
       } catch (err) {
         console.error('Failed to load PO', err);
         setError('Unable to load purchase order.');
@@ -60,9 +92,10 @@ const PurchaseOrderView = () => {
     setActionLoading(true);
     try {
       const token = localStorage.getItem('token');
-      await axios.post(`${API_URL}/purchase/orders/${id}/convert-to-bill`, null, { headers: { Authorization: `Bearer ${token}` } });
-      alert('Converted to Bill successfully!');
-      window.location.reload();
+      const res = await axios.post(`${API_URL}/purchase/orders/${id}/convert-to-bill`, null, { headers: { Authorization: `Bearer ${token}` } });
+      const newInvoiceId = res.data.id;
+      alert('Converted to Bill successfully! Please enter the Bill Number.');
+      navigate(`/purchase-dashboard/bills/edit/${newInvoiceId}`);
     } catch (err) {
       alert('Failed to convert. ' + (err.response?.data?.message || err.message));
     } finally {
@@ -122,12 +155,7 @@ const PurchaseOrderView = () => {
                 <Paperclip size={18} />
              </button>
 
-             {/* Convert */}
-             {po.status !== 'Billed' && (
-                 <button onClick={handleConvertToBill} disabled={actionLoading} className="px-4 py-2 bg-sky-600 text-white rounded text-sm font-medium hover:bg-sky-700 transition shadow-sm">
-                    {actionLoading ? 'Converting...' : 'Convert to Bill'}
-                 </button>
-             )}
+             {/* Convert - Moved to More */}
 
              {/* More Dropdown */}
              <div className="relative">
@@ -137,7 +165,16 @@ const PurchaseOrderView = () => {
                  {showMore && (
                      <div className="absolute top-full left-0 mt-1 w-48 bg-white border rounded shadow-lg py-1 z-20 text-sm text-slate-700" onMouseLeave={() => setShowMore(false)}>
                          <button onClick={() => navigate(`/purchase-dashboard/purchase-orders/${id}/grn/new`)} className="block w-full text-left px-4 py-2 hover:bg-slate-100">Add GRN</button>
-                         {/* Add more actions here */}
+                         {po.status !== 'Billed' && (
+                              <>
+                                  <button onClick={() => navigate('/purchase-dashboard/bills/new', { state: { fromPo: po } })} className="block w-full text-left px-4 py-2 hover:bg-slate-100 text-blue-600">
+                                      Convert to Bill
+                                  </button>
+                                  <button onClick={() => navigate('/purchase-dashboard/payments/new', { state: { fromPo: po } })} className="block w-full text-left px-4 py-2 hover:bg-slate-100 text-green-600">
+                                      Convert to Payment
+                                  </button>
+                              </>
+                          )}
                      </div>
                  )}
              </div>
@@ -161,14 +198,18 @@ const PurchaseOrderView = () => {
          {!isLetterHead && (
              <div className="flex justify-between items-start mb-8 pb-4 border-b-2 border-slate-800">
                  <div className="flex gap-4 items-center">
-                     {/* Logo Placeholder */}
-                     <div className="w-16 h-16 bg-slate-100 flex items-center justify-center rounded">
-                        <img src="/logo-placeholder.png" alt="Logo" className="max-w-full max-h-full opacity-50" onError={(e) => e.target.style.display='none'} />
-                        <span className="text-xs text-slate-400">Logo</span>
-                     </div>
+                     {/* Logo */}
+                     {tenantInfo.logo && (
+                         <div className="w-16 h-16 bg-slate-100 flex items-center justify-center rounded">
+                            <img src={tenantInfo.logo.startsWith('/') ? tenantInfo.logo : `${API_URL}/uploads/${tenantInfo.logo}`} alt="Logo" className="max-w-full max-h-full" onError={(e) => e.target.style.display='none'} />
+                         </div>
+                     )}
                      <div>
-                         <h1 className="text-xl font-bold uppercase tracking-wide">{tenantInfo.name}</h1>
-                         <p className="text-sm font-medium text-slate-600">{tenantInfo.address}</p>
+                         <h1 className="text-xl font-bold uppercase tracking-wide">{tenantInfo.companyName || tenantInfo.name}</h1>
+                         <p className="text-sm font-medium text-slate-600">
+                            {tenantInfo.address || tenantInfo.location || ''} <br/>
+                            {tenantInfo.email && <span className='lowercase'>{tenantInfo.email}</span>}
+                         </p>
                      </div>
                  </div>
              </div>
@@ -197,7 +238,7 @@ const PurchaseOrderView = () => {
              
              <div className="text-right">
                  <h2 className="text-3xl font-bold text-slate-900 uppercase mb-1">Purchase Order</h2>
-                 <p className="text-sm font-bold text-slate-600">TRN : 123456789101111</p> {/* Placeholder TRN */}
+                 <p className="text-sm font-bold text-slate-600">TRN : {tenantInfo.trnNumber || tenantInfo.taxId || '-'}</p> 
              </div>
          </div>
 
@@ -205,9 +246,18 @@ const PurchaseOrderView = () => {
          <div className="mb-8">
              <div className="font-bold text-slate-800 border-b border-slate-300 mb-2 pb-1">Vendor Address</div>
              <div className="bg-slate-50 p-3 border rounded text-sm">
-                 <div className="font-bold text-lg">{po.supplierName}</div>
-                 <div className="text-slate-600 whitespace-pre-wrap">{po.supplierAddress || 'No Address Provided'}</div>
-                 <div className="mt-1 text-slate-500">TRN: {po.supplierTrn || '-'}</div>
+                 <div className="font-bold text-lg">{supplierInfo ? (supplierInfo.companyName || supplierInfo.name) : po.supplierName}</div>
+                 <div className="text-slate-600 whitespace-pre-wrap">
+                    {supplierInfo ? (
+                        <>
+                           {supplierInfo.addressLine1} {supplierInfo.addressLine2}<br/>
+                           {supplierInfo.city} {supplierInfo.state} {supplierInfo.country}<br/>
+                           {supplierInfo.phone && <>Ph: {supplierInfo.phone}<br/></>}
+                           {supplierInfo.email && <>{supplierInfo.email}</>}
+                        </>
+                    ) : (po.supplierAddress || 'Address not loaded')}
+                 </div>
+                 <div className="mt-1 text-slate-500">TRN: {supplierInfo ? (supplierInfo.trnNumber || supplierInfo.taxId) : (po.supplierTrn || '-')}</div>
              </div>
              
              {po.deliverToAddress && (
