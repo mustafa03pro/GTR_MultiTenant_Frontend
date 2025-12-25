@@ -21,7 +21,7 @@ const ProfileCard = ({ title, children }) => (
 );
 
 // Reusable component for an editable field
-const EditField = ({ label, name, value, onChange, type = 'text' }) => {
+const EditField = ({ label, name, value, onChange, type = 'text', options = [] }) => {
     const commonProps = {
         id: name,
         name: name,
@@ -35,6 +35,13 @@ const EditField = ({ label, name, value, onChange, type = 'text' }) => {
             <label htmlFor={name} className="block text-sm font-medium text-foreground-muted">{label}</label>
             {type === 'textarea' ? (
                 <textarea {...commonProps} rows="3" />
+            ) : type === 'select' ? (
+                <select {...commonProps}>
+                    <option value="">Select...</option>
+                    {options.map(opt => (
+                        <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    ))}
+                </select>
             ) : (
                 <input {...commonProps} type={type} />
             )}
@@ -55,7 +62,9 @@ const Address = ({ employee }) => {
     const initialFormState = {
         address: '', city: '', state: '', country: '', postalCode: '',
         emergencyContactName: '', emergencyContactRelation: '', emergencyContactPhone: '',
-        bankName: '', bankAccountNumber: '', ifscCode: '', bloodGroup: '', notes: ''
+        bankName: '', bankAccountNumber: '', ifscCode: '', iban: '', bloodGroup: '', notes: '',
+        laborCardNumber: '', laborCardExpiry: '', routingCode: '', isWpsRegistered: false,
+        nationality: '', preferredName: '', jobType: '', office: '', paymentMethod: '', molId: ''
     };
 
     useEffect(() => {
@@ -149,6 +158,26 @@ const Address = ({ employee }) => {
             </div>
             {error && <div className="text-center text-red-600 p-3 bg-red-500/10 rounded-md mb-4">{error}</div>}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <ProfileCard title="Personal Details">
+                    {isEditing ? <>
+                        <EditField label="Preferred Name" name="preferredName" value={formData.preferredName} onChange={handleChange} />
+                        <EditField label="Nationality" name="nationality" value={formData.nationality} onChange={handleChange} />
+                    </> : <>
+                        <InfoField label="Preferred Name" value={currentData.preferredName} />
+                        <InfoField label="Nationality" value={currentData.nationality} />
+                    </>}
+                </ProfileCard>
+
+                <ProfileCard title="Employment Info">
+                    {isEditing ? <>
+                        <EditField label="Job Type" name="jobType" value={formData.jobType} onChange={handleChange} type="select" options={[{ value: 'FULL_TIME', label: 'Full Time' }, { value: 'PART_TIME', label: 'Part Time' }, { value: 'CONTRACT', label: 'Contract' }, { value: 'INTERN', label: 'Intern' }]} />
+                        <EditField label="Office/Branch" name="office" value={formData.office} onChange={handleChange} />
+                    </> : <>
+                        <InfoField label="Job Type" value={currentData.jobType} />
+                        <InfoField label="Office/Branch" value={currentData.office} />
+                    </>}
+                </ProfileCard>
+
                 <ProfileCard title="Contact & Address">
                     {isEditing ? <>
                         <EditField label="Address" name="address" value={formData.address} onChange={handleChange} />
@@ -184,10 +213,42 @@ const Address = ({ employee }) => {
                         <EditField label="Bank Name" name="bankName" value={formData.bankName} onChange={handleChange} />
                         <EditField label="Account Number" name="bankAccountNumber" value={formData.bankAccountNumber} onChange={handleChange} />
                         <EditField label="IFSC Code" name="ifscCode" value={formData.ifscCode} onChange={handleChange} />
+                        <EditField label="IBAN" name="iban" value={formData.iban} onChange={handleChange} />
+                        <EditField label="Payment Method" name="paymentMethod" value={formData.paymentMethod} onChange={handleChange} type="select" options={[{ value: 'BANK_TRANSFER', label: 'Bank Transfer' }, { value: 'CHEQUE', label: 'Cheque' }, { value: 'CASH', label: 'Cash' }]} />
                     </> : <>
                         <InfoField label="Bank Name" value={currentData.bankName} />
                         <InfoField label="Account Number" value={currentData.bankAccountNumber} />
                         <InfoField label="IFSC Code" value={currentData.ifscCode} />
+                        <InfoField label="IBAN" value={currentData.iban} />
+                        <InfoField label="Payment Method" value={currentData.paymentMethod} />
+                    </>}
+                </ProfileCard>
+
+                <ProfileCard title="WPS & Statutory Details">
+                    {isEditing ? <>
+                        <EditField label="Labor Card Number (MOHRE ID)" name="laborCardNumber" value={formData.laborCardNumber} onChange={handleChange} />
+                        <EditField label="Labor Card Expiry" name="laborCardExpiry" value={formData.laborCardExpiry} onChange={handleChange} type="date" />
+                        <EditField label="MOL ID (Person ID)" name="molId" value={formData.molId} onChange={handleChange} />
+                        <EditField label="Routing Code (Agent ID)" name="routingCode" value={formData.routingCode} onChange={handleChange} />
+                        <div className="flex items-center pt-6">
+                            <input
+                                id="isWpsRegistered"
+                                name="isWpsRegistered"
+                                type="checkbox"
+                                checked={formData.isWpsRegistered || false}
+                                onChange={(e) => setFormData(prev => ({ ...prev, isWpsRegistered: e.target.checked }))}
+                                className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                            />
+                            <label htmlFor="isWpsRegistered" className="ml-2 block text-sm text-foreground">
+                                WPS Registered
+                            </label>
+                        </div>
+                    </> : <>
+                        <InfoField label="Labor Card Number (MOHRE ID)" value={currentData.laborCardNumber} />
+                        <InfoField label="Labor Card Expiry" value={currentData.laborCardExpiry} />
+                        <InfoField label="MOL ID (Person ID)" value={currentData.molId} />
+                        <InfoField label="Routing Code (Agent ID)" value={currentData.routingCode} />
+                        <InfoField label="WPS Registered" value={currentData.isWpsRegistered ? 'Yes' : 'No'} />
                     </>}
                 </ProfileCard>
 

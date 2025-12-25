@@ -69,7 +69,7 @@ const LeaveTypes = ({ onSetupClick }) => {
     }
 
     if (error) {
-        return <div className="text-red-600 bg-red-100 p-4 rounded-lg flex items-center"><AlertCircle className="mr-2"/>{error}</div>;
+        return <div className="text-red-600 bg-red-100 p-4 rounded-lg flex items-center"><AlertCircle className="mr-2" />{error}</div>;
     }
 
     return (
@@ -88,6 +88,8 @@ const LeaveTypes = ({ onSetupClick }) => {
                             <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Description</th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Paid</th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Max Days/Year</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Start Time</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">End Time</th>
                             <th className="px-6 py-3 text-right text-xs font-medium text-slate-500 uppercase tracking-wider">Actions</th>
                         </tr>
                     </thead>
@@ -98,6 +100,8 @@ const LeaveTypes = ({ onSetupClick }) => {
                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">{type.description}</td>
                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">{type.isPaid ? 'Yes' : 'No'}</td>
                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">{type.maxDaysPerYear}</td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">{type.startTime || '-'}</td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">{type.endTime || '-'}</td>
                                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-right">
                                     <button onClick={() => handleOpenModal(type)} className="text-blue-600 hover:text-blue-800 mr-4"><Edit size={18} /></button>
                                     {onSetupClick && (
@@ -129,6 +133,8 @@ const LeaveTypeFormModal = ({ isOpen, onClose, onSave, leaveType }) => {
         description: leaveType?.description || '',
         isPaid: leaveType?.isPaid || false,
         maxDaysPerYear: leaveType?.maxDaysPerYear || 0,
+        startTime: leaveType?.startTime || '',
+        endTime: leaveType?.endTime || '',
     });
 
     const handleChange = (e) => {
@@ -155,6 +161,16 @@ const LeaveTypeFormModal = ({ isOpen, onClose, onSave, leaveType }) => {
                 <div>
                     <label htmlFor="maxDaysPerYear" className="block text-sm font-medium text-slate-700">Max Days Per Year</label>
                     <input type="number" name="maxDaysPerYear" id="maxDaysPerYear" value={formData.maxDaysPerYear} onChange={handleChange} className="input mt-1" placeholder="e.g., 12" />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                    <div>
+                        <label htmlFor="startTime" className="block text-sm font-medium text-slate-700">Start Time</label>
+                        <input type="time" name="startTime" id="startTime" value={formData.startTime} onChange={handleChange} className="input mt-1" />
+                    </div>
+                    <div>
+                        <label htmlFor="endTime" className="block text-sm font-medium text-slate-700">End Time</label>
+                        <input type="time" name="endTime" id="endTime" value={formData.endTime} onChange={handleChange} className="input mt-1" />
+                    </div>
                 </div>
                 <div>
                     <label className="inline-flex items-center">

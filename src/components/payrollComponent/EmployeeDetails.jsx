@@ -35,7 +35,7 @@ const BankAccountTab = ({ employee }) => {
     const API_URL = import.meta.env.VITE_API_BASE_URL;
 
     const initialFormData = {
-        bankName: '', accountNumber: '', ifscCode: '', accountHolderName: '', primary: true
+        bankName: '', accountNumber: '', ifscCode: '', iban: '', accountHolderName: '', routingCode: '', primary: true
     };
     const [formData, setFormData] = useState(initialFormData);
 
@@ -118,6 +118,10 @@ const BankAccountTab = ({ employee }) => {
                     <InputField label="Account Holder Name" name="accountHolderName" value={formData.accountHolderName} onChange={handleChange} required />
                     <InputField label="Account Number" name="accountNumber" value={formData.accountNumber} onChange={handleChange} required />
                     <InputField label="IFSC Code" name="ifscCode" value={formData.ifscCode} onChange={handleChange} required />
+                    <InputField label="Account Number" name="accountNumber" value={formData.accountNumber} onChange={handleChange} required />
+                    <InputField label="IFSC Code" name="ifscCode" value={formData.ifscCode} onChange={handleChange} required />
+                    <InputField label="IBAN" name="iban" value={formData.iban} onChange={handleChange} />
+                    <InputField label="Routing Code / Agent ID" name="routingCode" value={formData.routingCode} onChange={handleChange} />
                     <div className="flex items-center">
                         <input type="checkbox" id="isPrimary" name="primary" checked={formData.primary} onChange={handleChange} className="h-4 w-4" />
                         <label htmlFor="isPrimary" className="ml-2 text-sm">Set as primary account</label>
@@ -135,6 +139,10 @@ const BankAccountTab = ({ employee }) => {
                     <InfoDisplay label="Account Holder Name" value={account.accountHolderName} />
                     <InfoDisplay label="Account Number" value={account.accountNumber} />
                     <InfoDisplay label="IFSC Code" value={account.ifscCode} />
+                    <InfoDisplay label="Account Number" value={account.accountNumber} />
+                    <InfoDisplay label="IFSC Code" value={account.ifscCode} />
+                    <InfoDisplay label="IBAN" value={account.iban} />
+                    <InfoDisplay label="Routing Code / Agent ID" value={account.routingCode} />
                     <InfoDisplay label="Primary Account" value={account.primary ? 'Yes' : 'No'} />
                 </div>
             )}
@@ -317,8 +325,8 @@ const ExpensesTab = ({ employee }) => {
                                 <td className="px-4 py-3 whitespace-nowrap text-sm space-x-2">
                                     {exp.status === 'SUBMITTED' && (
                                         <div className="flex gap-2">
-                                            <button onClick={() => handleAction(exp.id, 'approve')} className="p-1.5 text-green-600 hover:bg-green-100 rounded-full" title="Approve"><Check size={14}/></button>
-                                            <button onClick={() => handleAction(exp.id, 'reject')} className="p-1.5 text-red-600 hover:bg-red-100 rounded-full" title="Reject"><X size={14}/></button>
+                                            <button onClick={() => handleAction(exp.id, 'approve')} className="p-1.5 text-green-600 hover:bg-green-100 rounded-full" title="Approve"><Check size={14} /></button>
+                                            <button onClick={() => handleAction(exp.id, 'reject')} className="p-1.5 text-red-600 hover:bg-red-100 rounded-full" title="Reject"><X size={14} /></button>
                                         </div>
                                     )}
                                 </td>
@@ -447,9 +455,8 @@ const EmployeeDetails = () => {
                                         <td className="px-4 py-3 whitespace-nowrap text-sm">{emp.employeeCode}</td>
                                         <td className="px-4 py-3 whitespace-nowrap text-sm">{emp.emailWork}</td>
                                         <td className="px-4 py-3 whitespace-nowrap text-sm">
-                                            <span className={`inline-block px-2 py-0.5 text-xs font-semibold rounded-full capitalize ${
-                                                emp.status === 'ACTIVE' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                                            }`}>{emp.status?.toLowerCase()}</span>
+                                            <span className={`inline-block px-2 py-0.5 text-xs font-semibold rounded-full capitalize ${emp.status === 'ACTIVE' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                                                }`}>{emp.status?.toLowerCase()}</span>
                                         </td>
                                     </tr>
                                 )) : (
@@ -479,11 +486,10 @@ const EmployeeDetails = () => {
                                 <button
                                     key={tab.name}
                                     onClick={() => setActiveSubTab(tab.name)}
-                                    className={`whitespace-nowrap flex items-center py-3 px-1 border-b-2 font-medium text-sm transition-colors ${
-                                        activeSubTab === tab.name
-                                            ? 'border-blue-600 text-blue-600'
-                                            : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
-                                    }`}
+                                    className={`whitespace-nowrap flex items-center py-3 px-1 border-b-2 font-medium text-sm transition-colors ${activeSubTab === tab.name
+                                        ? 'border-blue-600 text-blue-600'
+                                        : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
+                                        }`}
                                 >
                                     <tab.icon className="mr-2 h-5 w-5" />
                                     {tab.name}

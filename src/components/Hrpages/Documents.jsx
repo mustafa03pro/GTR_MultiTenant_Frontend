@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Upload, Download, Eye, Edit, Trash2, Plus, Loader, AlertCircle, X, CheckCircle, ShieldCheck, XCircle } from 'lucide-react';
 import axios from 'axios';
 
@@ -52,61 +53,97 @@ const UploadDocumentModal = ({ isOpen, onClose, onSave, loading, documentTypes }
 
     if (!isOpen) return null;
 
-    return (
-        <div className="fixed inset-0 bg-black/50 flex justify-center items-center z-50 p-4">
-            <div className="bg-card text-card-foreground rounded-lg shadow-xl w-full max-w-md">
-                <div className="p-4 border-b border-border flex justify-between items-center">
-                    <h2 className="text-xl font-semibold text-foreground">Upload Document</h2>
-                    <button onClick={onClose} className="p-2 rounded-full text-foreground-muted hover:bg-background-muted"><X className="h-5 w-5" /></button>
+    return createPortal(
+        <div className="fixed inset-0 bg-black/50 flex justify-center items-center z-[100] p-4">
+            <div className="bg-white dark:bg-slate-800 rounded-lg shadow-xl w-full max-w-md">
+                <div className="p-4 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center">
+                    <h2 className="text-xl font-semibold text-slate-800 dark:text-slate-100">Upload Document</h2>
+                    <button onClick={onClose} className="p-2 rounded-full text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-700"><X className="h-5 w-5" /></button>
                 </div>
                 <form onSubmit={handleSubmit}>
                     <div className="p-6 space-y-4">
                         <div>
-                            <label htmlFor="file" className="block text-sm font-medium text-foreground-muted">File</label>
-                            <input id="file" type="file" onChange={handleFileChange} required className="input bg-background-muted border-border text-foreground file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20" />
+                            <label htmlFor="file" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">File</label>
+                            <input
+                                id="file"
+                                type="file"
+                                onChange={handleFileChange}
+                                required
+                                className="w-full text-sm text-slate-500 dark:text-slate-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 dark:file:bg-blue-900/30 dark:file:text-blue-300"
+                            />
                         </div>
                         <div>
-                            <label htmlFor="docTypeId" className="block text-sm font-medium text-foreground-muted">Document Type</label>
-                            <select id="docTypeId" value={docTypeId} onChange={(e) => setDocTypeId(e.target.value)} required className="input bg-background-muted border-border text-foreground">
+                            <label htmlFor="docTypeId" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Document Type</label>
+                            <select
+                                id="docTypeId"
+                                value={docTypeId}
+                                onChange={(e) => setDocTypeId(e.target.value)}
+                                required
+                                className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100"
+                            >
                                 <option value="">Select a type</option>
                                 {documentTypes.map(type => <option key={type.id} value={type.id}>{type.name}</option>)}
                             </select>
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
-                                <label htmlFor="documentId" className="block text-sm font-medium text-foreground-muted">Document ID (Optional)</label>
-                                <input id="documentId" value={documentId} onChange={(e) => setDocumentId(e.target.value)} className="input bg-background-muted border-border text-foreground" />
+                                <label htmlFor="documentId" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Document ID (Optional)</label>
+                                <input
+                                    id="documentId"
+                                    value={documentId}
+                                    onChange={(e) => setDocumentId(e.target.value)}
+                                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100"
+                                />
                             </div>
                             <div>
-                                <label htmlFor="registrationDate" className="block text-sm font-medium text-foreground-muted">Registration Date (Optional)</label>
-                                <input id="registrationDate" type="date" value={registrationDate} onChange={(e) => setRegistrationDate(e.target.value)} className="input bg-background-muted border-border text-foreground" />
+                                <label htmlFor="registrationDate" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Registration Date (Optional)</label>
+                                <input
+                                    id="registrationDate"
+                                    type="date"
+                                    value={registrationDate}
+                                    onChange={(e) => setRegistrationDate(e.target.value)}
+                                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100"
+                                />
                             </div>
                         </div>
                         <div>
-                            <label htmlFor="endDate" className="block text-sm font-medium text-foreground-muted">End Date (Optional)</label>
-                            <input id="endDate" type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="input bg-background-muted border-border text-foreground" />
+                            <label htmlFor="endDate" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">End Date (Optional)</label>
+                            <input
+                                id="endDate"
+                                type="date"
+                                value={endDate}
+                                onChange={(e) => setEndDate(e.target.value)}
+                                className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100"
+                            />
                         </div>
                         <div>
-                            <label htmlFor="remarks" className="block text-sm font-medium text-foreground-muted">Remarks (Optional)</label>
-                            <textarea id="remarks" value={remarks} onChange={(e) => setRemarks(e.target.value)} rows="3" className="input bg-background-muted border-border text-foreground" />
+                            <label htmlFor="remarks" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Remarks (Optional)</label>
+                            <textarea
+                                id="remarks"
+                                value={remarks}
+                                onChange={(e) => setRemarks(e.target.value)}
+                                rows="3"
+                                className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100"
+                            />
                         </div>
                         {modalError && <p className="text-red-500 text-sm">{modalError}</p>}
                     </div>
-                    <div className="p-4 border-t bg-slate-50 flex justify-end gap-2">
-                        <button type="button" onClick={onClose} className="btn-secondary" disabled={loading}>Cancel</button>
-                        <button type="submit" className="btn-primary flex items-center" disabled={loading}>
+                    <div className="p-4 border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 flex justify-end gap-2 text-slate-700 dark:text-slate-300">
+                        <button type="button" onClick={onClose} className="px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors" disabled={loading}>Cancel</button>
+                        <button type="submit" className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg flex items-center transition-colors" disabled={loading}>
                             {loading && <Loader className="animate-spin h-4 w-4 mr-2" />} Upload
                         </button>
                     </div>
                 </form>
             </div>
-        </div>
+        </div>,
+        document.body
     );
 };
 
 const EditDocumentModal = ({ isOpen, onClose, onSave, document, loading, documentTypes }) => {
     const [formData, setFormData] = useState({ docTypeId: '', documentId: '', registrationDate: '', endDate: '', remarks: '', verified: false });
-    
+
     useEffect(() => {
         if (document) {
             setFormData({
@@ -132,56 +169,96 @@ const EditDocumentModal = ({ isOpen, onClose, onSave, document, loading, documen
 
     if (!isOpen) return null;
 
-    return (
-        <div className="fixed inset-0 bg-black/50 flex justify-center items-center z-50 p-4">
-            <div className="bg-card text-card-foreground rounded-lg shadow-xl w-full max-w-md">
-                <div className="p-4 border-b border-border flex justify-between items-center">
-                    <h2 className="text-xl font-semibold text-foreground">Edit Document Details</h2>
-                    <button onClick={onClose} className="p-2 rounded-full text-foreground-muted hover:bg-background-muted"><X className="h-5 w-5" /></button>
+    return createPortal(
+        <div className="fixed inset-0 bg-black/50 flex justify-center items-center z-[100] p-4">
+            <div className="bg-white dark:bg-slate-800 rounded-lg shadow-xl w-full max-w-md">
+                <div className="p-4 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center">
+                    <h2 className="text-xl font-semibold text-slate-800 dark:text-slate-100">Edit Document Details</h2>
+                    <button onClick={onClose} className="p-2 rounded-full text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-700"><X className="h-5 w-5" /></button>
                 </div>
                 <form onSubmit={handleSubmit}>
                     <div className="p-6 space-y-4">
                         <div>
-                            <label htmlFor="edit-docTypeId" className="block text-sm font-medium text-foreground-muted">Document Type</label>
-                            <select id="edit-docTypeId" name="docTypeId" value={formData.docTypeId} onChange={handleChange} className="input bg-background-muted border-border text-foreground">
+                            <label htmlFor="edit-docTypeId" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Document Type</label>
+                            <select
+                                id="edit-docTypeId"
+                                name="docTypeId"
+                                value={formData.docTypeId}
+                                onChange={handleChange}
+                                className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100"
+                            >
                                 <option value="">Select a type</option>
                                 {documentTypes.map(type => <option key={type.id} value={type.id}>{type.name}</option>)}
                             </select>
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
-                                <label htmlFor="edit-documentId" className="block text-sm font-medium text-foreground-muted">Document ID</label>
-                                <input id="edit-documentId" name="documentId" value={formData.documentId} onChange={handleChange} className="input bg-background-muted border-border text-foreground" />
+                                <label htmlFor="edit-documentId" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Document ID</label>
+                                <input
+                                    id="edit-documentId"
+                                    name="documentId"
+                                    value={formData.documentId}
+                                    onChange={handleChange}
+                                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100"
+                                />
                             </div>
                             <div>
-                                <label htmlFor="edit-registrationDate" className="block text-sm font-medium text-foreground-muted">Registration Date</label>
-                                <input id="edit-registrationDate" name="registrationDate" type="date" value={formData.registrationDate} onChange={handleChange} className="input bg-background-muted border-border text-foreground" />
+                                <label htmlFor="edit-registrationDate" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Registration Date</label>
+                                <input
+                                    id="edit-registrationDate"
+                                    name="registrationDate"
+                                    type="date"
+                                    value={formData.registrationDate}
+                                    onChange={handleChange}
+                                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100"
+                                />
                             </div>
                         </div>
                         <div>
-                            <label htmlFor="edit-endDate" className="block text-sm font-medium text-foreground-muted">End Date</label>
-                            <input id="edit-endDate" name="endDate" type="date" value={formData.endDate} onChange={handleChange} className="input bg-background-muted border-border text-foreground" />
+                            <label htmlFor="edit-endDate" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">End Date</label>
+                            <input
+                                id="edit-endDate"
+                                name="endDate"
+                                type="date"
+                                value={formData.endDate}
+                                onChange={handleChange}
+                                className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100"
+                            />
                         </div>
                         <div>
                             <label className="inline-flex items-center">
-                                <input type="checkbox" name="verified" checked={formData.verified} onChange={handleChange} className="h-4 w-4 rounded border-border text-primary focus:ring-primary" />
-                                <span className="ml-2 text-sm text-foreground-muted">Mark as Verified</span>
+                                <input
+                                    type="checkbox"
+                                    name="verified"
+                                    checked={formData.verified}
+                                    onChange={handleChange}
+                                    className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                                />
+                                <span className="ml-2 text-sm text-slate-700 dark:text-slate-300">Mark as Verified</span>
                             </label>
                         </div>
                         <div>
-                            <label htmlFor="edit-remarks" className="block text-sm font-medium text-foreground-muted">Remarks</label>
-                            <textarea id="edit-remarks" name="remarks" value={formData.remarks} onChange={handleChange} rows="3" className="input bg-background-muted border-border text-foreground" />
+                            <label htmlFor="edit-remarks" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Remarks</label>
+                            <textarea
+                                id="edit-remarks"
+                                name="remarks"
+                                value={formData.remarks}
+                                onChange={handleChange}
+                                rows="3"
+                                className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100"
+                            />
                         </div>
                     </div>
-                    <div className="p-4 border-t bg-slate-50 flex justify-end gap-2">
-                        <button type="button" onClick={onClose} className="btn-secondary" disabled={loading}>Cancel</button>
-                        <button type="submit" className="btn-primary flex items-center" disabled={loading}>
+                    <div className="p-4 border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 flex justify-end gap-2 text-slate-700 dark:text-slate-300">
+                        <button type="button" onClick={onClose} className="px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors" disabled={loading}>Cancel</button>
+                        <button type="submit" className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg flex items-center transition-colors" disabled={loading}>
                             {loading && <Loader className="animate-spin h-4 w-4 mr-2" />} Save
                         </button>
                     </div>
                 </form>
             </div>
-        </div>
+        </div>,
+        document.body
     );
 };
 
@@ -246,11 +323,11 @@ const Documents = ({ employee }) => {
         setModalLoading(true);
         try {
             const token = localStorage.getItem('token');
-            await axios.put(`${API_URL}/employee-documents/${editingDocument.id}`, documentData, { 
-                headers: { 
+            await axios.put(`${API_URL}/employee-documents/${editingDocument.id}`, documentData, {
+                headers: {
                     "Authorization": `Bearer ${token}`,
                     "Content-Type": "application/json"
-                } 
+                }
             });
             setIsEditModalOpen(false);
             fetchDocuments();

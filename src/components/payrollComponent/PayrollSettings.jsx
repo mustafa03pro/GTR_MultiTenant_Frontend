@@ -126,8 +126,8 @@ const GeneralSettingsTab = () => {
                     <InputField label="Payslip Generation Day" name="payslipGenerationDay" type="number" value={formData.payslipGenerationDay} onChange={handleChange} min="1" max="31" />
                 </div>
                 <div className="space-y-4">
-                     <CheckboxField label="Include holidays in payslip" name="includeHolidaysInPayslip" checked={formData.includeHolidaysInPayslip} onChange={handleChange} />
-                     <CheckboxField label="Include leave balance in payslip" name="includeLeaveBalanceInPayslip" checked={formData.includeLeaveBalanceInPayslip} onChange={handleChange} />
+                    <CheckboxField label="Include holidays in payslip" name="includeHolidaysInPayslip" checked={formData.includeHolidaysInPayslip} onChange={handleChange} />
+                    <CheckboxField label="Include leave balance in payslip" name="includeLeaveBalanceInPayslip" checked={formData.includeLeaveBalanceInPayslip} onChange={handleChange} />
                 </div>
                 <div className="flex justify-end gap-2">
                     {settings && <button type="button" onClick={() => setIsEditing(false)} className="btn-secondary" disabled={saveLoading}>Cancel</button>}
@@ -270,14 +270,14 @@ const createCrudTab = (config, customLogic = {}) => () => {
 
     const handleSave = (data) => {
         const token = localStorage.getItem('token');
-        const request = data.id 
+        const request = data.id
             ? axios.put(`${API_URL}${config.endpoints.update}/${data.id}`, data, { headers: { "Authorization": `Bearer ${token}` } })
             : axios.post(`${API_URL}${config.endpoints.create}`, data, { headers: { "Authorization": `Bearer ${token}` } });
 
         request.then(() => {
-                fetchItems();
-                setIsModalOpen(false);
-            })
+            fetchItems();
+            setIsModalOpen(false);
+        })
             .catch(err => { console.error(`Error saving ${config.singularName}:`, err); alert(`Failed to save ${config.singularName}.`); });
     };
 
@@ -296,7 +296,7 @@ const createCrudTab = (config, customLogic = {}) => () => {
     }
 
     return (
-        <> 
+        <>
             <CrudTable title={config.title} columns={config.columns} data={items} onAdd={handleAdd} onEdit={handleEdit} onDelete={finalConfig.onDelete || handleDelete} addLabel={config.addLabel} onToggle={finalConfig.onToggle} showToggle={!!finalConfig.onToggle} />
             <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={editingItem ? `Edit ${config.singularName}` : `Add ${config.singularName}`}>
                 <config.FormComponent initialData={editingItem} onSave={handleSave} onCancel={() => setIsModalOpen(false)} />
@@ -306,15 +306,26 @@ const createCrudTab = (config, customLogic = {}) => () => {
 };
 
 const SalaryComponentForm = ({ initialData, onSave, onCancel }) => {
-    const [formData, setFormData] = useState(initialData || {
-        name: '',
-        code: '',
-        type: 'EARNING',
-        calculationType: 'FLAT_AMOUNT',
-        formula: '',
-        taxable: true,
-        partOfGrossSalary: true,
-        displayOrder: 0
+    const [formData, setFormData] = useState(() => {
+        if (initialData) {
+            return {
+                ...initialData,
+                isWpsIncluded: initialData.isWpsIncluded ?? initialData.wpsIncluded ?? true,
+                isVariable: initialData.isVariable ?? initialData.variable ?? false,
+            };
+        }
+        return {
+            name: '',
+            code: '',
+            type: 'EARNING',
+            calculationType: 'FLAT_AMOUNT',
+            formula: '',
+            taxable: true,
+            partOfGrossSalary: true,
+            displayOrder: 0,
+            isWpsIncluded: true,
+            isVariable: false
+        };
     });
 
     const handleChange = (e) => {
@@ -349,9 +360,11 @@ const SalaryComponentForm = ({ initialData, onSave, onCancel }) => {
                 <InputField label="Formula" name="formula" type="textarea" rows="3" value={formData.formula} onChange={handleChange} placeholder="e.g., (basic * 0.4)" />
             )}
             <InputField label="Display Order" name="displayOrder" type="number" value={formData.displayOrder} onChange={handleChange} />
-            <div className="flex gap-6">
+            <div className="grid grid-cols-2 gap-4">
                 <CheckboxField label="Taxable" id="taxable" name="taxable" checked={formData.taxable} onChange={handleChange} />
                 <CheckboxField label="Part of Gross Salary" id="partOfGrossSalary" name="partOfGrossSalary" checked={formData.partOfGrossSalary} onChange={handleChange} />
+                <CheckboxField label="WPS Included" id="isWpsIncluded" name="isWpsIncluded" checked={formData.isWpsIncluded} onChange={handleChange} />
+                <CheckboxField label="Variable Component" id="isVariable" name="isVariable" checked={formData.isVariable} onChange={handleChange} />
             </div>
             <div className="flex justify-end gap-3 pt-4">
                 <button type="button" onClick={onCancel} className="btn-secondary">Cancel</button>
@@ -562,11 +575,10 @@ const PayrollSettings = () => {
                         <button
                             key={tab.name}
                             onClick={() => setActiveSubTab(tab.name)}
-                            className={`whitespace-nowrap flex items-center py-3 px-1 border-b-2 font-medium text-sm transition-colors ${
-                                activeSubTab === tab.name
+                            className={`whitespace-nowrap flex items-center py-3 px-1 border-b-2 font-medium text-sm transition-colors ${activeSubTab === tab.name
                                     ? 'border-blue-600 text-blue-600'
                                     : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
-                            }`}
+                                }`}
                         >
                             <tab.icon className="mr-2 h-5 w-5" />
                             {tab.name}

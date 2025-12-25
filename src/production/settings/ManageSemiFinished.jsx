@@ -52,7 +52,7 @@ const ManageSemiFinished = ({ locationId }) => {
         const url = isUpdating ? `${API_URL}/production/semi-finished/${editingItem.id}` : `${API_URL}/production/semi-finished`;
         const method = isUpdating ? 'put' : 'post';
         try {
-             await axios[method](url, itemData, { headers: authHeaders });
+            await axios[method](url, itemData, { headers: authHeaders });
             await fetchData();
             handleCloseForm();
         } catch (err) {

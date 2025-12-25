@@ -5,9 +5,9 @@ import axios from 'axios';
 
 // Roles relevant to the HRMS module that can be assigned or viewed.
 const HRMS_ROLES = [
-    'HRMS_ADMIN', 
-    'HR', 
-    'MANAGER', 
+    'HRMS_ADMIN',
+    'HR',
+    'MANAGER',
     'EMPLOYEE',
     // // SUPER_ADMIN is a tenant-level role that might also be managed here.
     // 'SUPER_ADMIN',
@@ -232,7 +232,7 @@ const UsersDetails = () => {
     // Filter users to show only those with roles relevant to HRMS.
     const filteredUsers = useMemo(() => {
         const relevantRoles = new Set(['HRMS_ADMIN', 'HR', 'MANAGER', 'EMPLOYEE']);
-        return users.filter(user => 
+        return users.filter(user =>
             user.roles.some(role => relevantRoles.has(role))
         );
     }, [users]);

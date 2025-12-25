@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom';
-import { 
+import {
     Factory,
     List,
     Calendar,
@@ -8,21 +8,20 @@ import {
     User,
     ClipboardList,
     FileText,
-    Settings, 
-    LogOut, 
+    Settings,
+    LogOut,
     Menu,
     ArrowLeft
 } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 
 const productionNavLinks = [
-    { name: 'Manage Manufacturing Order', icon: Factory, href: '/production-dashboard/manage-manufacturing-order' },
-    { name: 'View Manufacturing Order', icon: List, href: '/production-dashboard/view-manufacturing-order' },
-    { name: 'Production Schedule', icon: Calendar, href: '/production-dashboard/production-schedule' },
-    { name: 'Production Operation', icon: Activity, href: '/production-dashboard/production-operation' },
-    { name: 'My Production', icon: User, href: '/production-dashboard/my-production' },
-    { name: 'Material Requisition', icon: ClipboardList, href: '/production-dashboard/material-requisition' },
-    { name: 'Work Order Report', icon: FileText, href: '/production-dashboard/work-order-report' },
+    { name: 'Manage Manufacturing Order', icon: Factory, href: '/production-dashboard/manage-manufacturing-order', color: 'text-blue-600' },
+    { name: 'Production Schedule', icon: Calendar, href: '/production-dashboard/production-schedule', color: 'text-purple-600' },
+    { name: 'Production Operation', icon: Activity, href: '/production-dashboard/production-operation', color: 'text-rose-600' },
+    { name: 'My Production', icon: User, href: '/production-dashboard/my-production', color: 'text-amber-600' },
+    { name: 'Material Requisition', icon: ClipboardList, href: '/production-dashboard/material-requisition', color: 'text-emerald-600' },
+    { name: 'Work Order Report', icon: FileText, href: '/production-dashboard/work-order-report', color: 'text-indigo-600' },
 ];
 
 const SidebarContent = ({ onLinkClick }) => {
@@ -35,8 +34,13 @@ const SidebarContent = ({ onLinkClick }) => {
     };
 
     const NavItem = ({ item }) => (
-        <NavLink to={item.href} onClick={onLinkClick} end className={({ isActive }) => `flex items-center px-4 py-2.5 text-sm font-medium rounded-lg transition-colors group ${ isActive ? 'bg-primary text-primary-foreground shadow-sm' : 'text-foreground-muted hover:bg-background-muted' }`}>
-            <item.icon className={`h-5 w-5 mr-3 flex-shrink-0`} />
+        <NavLink
+            to={item.href}
+            onClick={onLinkClick}
+            end={item.href !== '/production-dashboard/manage-manufacturing-order'}
+            className={({ isActive }) => `flex items-center px-4 py-2.5 text-sm font-medium rounded-lg transition-colors group ${isActive ? 'bg-primary text-primary-foreground shadow-sm' : 'text-foreground-muted hover:bg-background-muted'}`}
+        >
+            <item.icon className={`h-5 w-5 mr-3 flex-shrink-0 ${item.color}`} />
             <span>{item.name}</span>
         </NavLink>
     );
@@ -53,8 +57,8 @@ const SidebarContent = ({ onLinkClick }) => {
                 {productionNavLinks.map((item) => <NavItem key={item.name} item={item} />)}
             </nav>
             <div className="p-4 border-t border-border flex-shrink-0 space-y-2">
-                <NavLink to="/company-settings/production" onClick={onLinkClick} className={({ isActive }) => `flex items-center px-4 py-2.5 text-sm font-medium rounded-lg transition-colors group ${ isActive ? 'bg-primary text-primary-foreground shadow-sm' : 'text-foreground-muted hover:bg-background-muted' }`}>
-                    <Settings className="h-5 w-5 mr-3" />
+                <NavLink to="/production-settings" onClick={onLinkClick} className={({ isActive }) => `flex items-center px-4 py-2.5 text-sm font-medium rounded-lg transition-colors group ${isActive ? 'bg-primary text-primary-foreground shadow-sm' : 'text-foreground-muted hover:bg-background-muted'}`}>
+                    <Settings className="h-5 w-5 mr-3 text-slate-500" />
                     <span>Settings</span>
                 </NavLink>
                 <button onClick={handleLogout} className="w-full flex items-center px-4 py-2.5 text-sm font-medium rounded-lg text-foreground-muted hover:bg-background-muted group" title="Logout">

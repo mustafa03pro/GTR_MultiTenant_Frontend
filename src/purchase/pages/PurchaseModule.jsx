@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { NavLink, Outlet, useNavigate, useLocation, Routes, Route } from 'react-router-dom';
+import { NavLink, Outlet, useNavigate, useLocation, Routes, Route, Navigate } from 'react-router-dom';
 import { 
     LayoutDashboard, 
     ShoppingCart, 
@@ -112,10 +112,19 @@ const PurchaseLayout = ({ children }) => {
     );
 };
 
+const PurchasePlaceholder = ({ pageName }) => (
+  <div className="text-center py-20">
+    <h1 className="text-3xl font-bold text-foreground">{pageName}</h1>
+    <p className="text-foreground-muted mt-2">This page is under construction.</p>
+  </div>
+);
+
 const PurchaseModule = () => {
     return (
         <PurchaseLayout>
             <Routes>
+                <Route index element={<Navigate to="dashboard" replace />} />
+                <Route path="dashboard" element={<PurchasePlaceholder pageName="Dashboard" />} />
                 <Route path="purchase-orders" element={<PurchaseOrderPage />} />
                 <Route path="purchase-orders/new" element={<PurchaseOrderForm />} />
                 <Route path="purchase-orders/view/:id" element={<PurchaseOrderView />} />

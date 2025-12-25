@@ -71,7 +71,7 @@ const SalaryStructureTab = ({ employee }) => {
 
     const handleAddComponent = () => setFormData(prev => ({ ...prev, components: [...prev.components, { componentCode: '', value: 0, formula: '' }] }));
     const handleRemoveComponent = (index) => setFormData(prev => ({ ...prev, components: prev.components.filter((_, i) => i !== index) }));
-    
+
     const handleComponentChange = (index, field, value) => {
         setFormData(prev => {
             const newComponents = [...prev.components];
@@ -80,7 +80,7 @@ const SalaryStructureTab = ({ employee }) => {
             // Auto-calculate value if formula is provided
             const basicComponent = newComponents.find(c => {
                 const componentInfo = allComponents.find(ac => ac.code === c.componentCode);
-                return componentInfo?.name.toLowerCase() === 'basic';
+                return componentInfo?.name.toLowerCase().includes('basic') || componentInfo?.code === 'BASIC';
             });
             const basic = basicComponent ? parseFloat(basicComponent.value) : 0;
 
@@ -189,6 +189,8 @@ const SyncStructureModal = ({ isOpen, onClose, structureId, currentEmployeeCode 
     const [loading, setLoading] = useState(true);
     const [selectedEmployees, setSelectedEmployees] = useState(new Set());
     const [searchTerm, setSearchTerm] = useState('');
+    const [departments, setDepartments] = useState([]);
+    const [selectedDepartment, setSelectedDepartment] = useState('all');
     const [isSyncing, setIsSyncing] = useState(false);
     const API_URL = import.meta.env.VITE_API_BASE_URL;
 
@@ -199,9 +201,29 @@ const SyncStructureModal = ({ isOpen, onClose, structureId, currentEmployeeCode 
                 setLoading(true);
                 try {
                     const token = localStorage.getItem('token');
-                    const res = await axios.get(`${API_URL}/employees/all`, { headers: { "Authorization": `Bearer ${token}` } });
+                    const headers = { "Authorization": `Bearer ${token}` };
+
+                    const [employeesRes, departmentsRes] = await Promise.all([
+                        axios.get(`${API_URL}/employees/all`, { headers }),
+                        axios.get(`${API_URL}/departments`, { headers })
+                    ]);
+
+                    setDepartments(departmentsRes.data);
+
+                    // Fetch job details for all employees to get department info
+                    const employeesWithJobDetails = await Promise.all(
+                        employeesRes.data.map(async (emp) => {
+                            try {
+                                const jobDetailsRes = await axios.get(`${API_URL}/job-details/${emp.employeeCode}`, { headers });
+                                return { ...emp, jobDetails: jobDetailsRes.data };
+                            } catch (err) {
+                                return { ...emp, jobDetails: null };
+                            }
+                        })
+                    );
+
                     // Exclude the current employee from the list
-                    setEmployees(res.data.filter(e => e.employeeCode !== currentEmployeeCode));
+                    setEmployees(employeesWithJobDetails.filter(e => e.employeeCode !== currentEmployeeCode));
                 } catch (err) {
                     console.error("Failed to fetch employees for sync:", err);
                 } finally {
@@ -213,12 +235,20 @@ const SyncStructureModal = ({ isOpen, onClose, structureId, currentEmployeeCode 
     }, [isOpen, API_URL, currentEmployeeCode]);
 
     const filteredEmployees = useMemo(() => {
-        if (!searchTerm) return employees;
-        const lowercasedFilter = searchTerm.toLowerCase();
-        return employees.filter(emp =>
-            `${emp.firstName} ${emp.lastName}`.toLowerCase().includes(lowercasedFilter) ||
-            emp.employeeCode.toLowerCase().includes(lowercasedFilter));
-    }, [employees, searchTerm]);
+        let filtered = employees;
+
+        if (selectedDepartment !== 'all') {
+            filtered = filtered.filter(emp => emp.jobDetails?.department === selectedDepartment);
+        }
+
+        if (searchTerm) {
+            const lowercasedFilter = searchTerm.toLowerCase();
+            filtered = filtered.filter(emp =>
+                `${emp.firstName} ${emp.lastName}`.toLowerCase().includes(lowercasedFilter) ||
+                emp.employeeCode.toLowerCase().includes(lowercasedFilter));
+        }
+        return filtered;
+    }, [employees, searchTerm, selectedDepartment]);
 
     const handleSelect = (employeeCode) => {
         setSelectedEmployees(prev => {
@@ -274,8 +304,21 @@ const SyncStructureModal = ({ isOpen, onClose, structureId, currentEmployeeCode 
         <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center p-4">
             <div className="bg-white rounded-lg shadow-xl w-full max-w-lg max-h-[80vh] flex flex-col">
                 <h3 className="text-lg font-semibold p-4 border-b">Sync Salary Structure</h3>
-                <div className="p-4 border-b">
-                    <InputField
+                <div className="p-4 border-b flex gap-2">
+                    <select
+                        value={selectedDepartment}
+                        onChange={(e) => setSelectedDepartment(e.target.value)}
+                        className="block w-1/3 px-3 py-2 bg-white border border-slate-300 rounded-md text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                    >
+                        <option value="all">All Departments</option>
+                        {departments.map((dept) => (
+                            <option key={dept.id} value={dept.name}>
+                                {dept.name}
+                            </option>
+                        ))}
+                    </select>
+                    <input
+                        className="block w-2/3 px-3 py-2 bg-white border border-slate-300 rounded-md text-sm shadow-sm placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
                         type="text"
                         placeholder="Search employees..."
                         value={searchTerm}
@@ -289,11 +332,11 @@ const SyncStructureModal = ({ isOpen, onClose, structureId, currentEmployeeCode 
                             <span>Select All Visible</span>
                         </label>
                         {filteredEmployees.map(emp => (
-                        <label key={emp.employeeCode} className="flex items-center gap-3 p-2 rounded hover:bg-slate-50 cursor-pointer">
-                            <input type="checkbox" checked={selectedEmployees.has(emp.employeeCode)} onChange={() => handleSelect(emp.employeeCode)} className="h-4 w-4 rounded" />
-                            <span>{emp.firstName} {emp.lastName} ({emp.employeeCode})</span>
-                        </label>
-                    ))}</>}
+                            <label key={emp.employeeCode} className="flex items-center gap-3 p-2 rounded hover:bg-slate-50 cursor-pointer">
+                                <input type="checkbox" checked={selectedEmployees.has(emp.employeeCode)} onChange={() => handleSelect(emp.employeeCode)} className="h-4 w-4 rounded" />
+                                <span>{emp.firstName} {emp.lastName} ({emp.employeeCode})</span>
+                            </label>
+                        ))}</>}
                 </div>
                 <div className="p-4 border-t flex justify-end gap-2">
                     <button onClick={onClose} className="btn-secondary" disabled={isSyncing}>Cancel</button>
@@ -518,9 +561,8 @@ const EmployeePayroll = () => {
                                         <td className="px-4 py-3 whitespace-nowrap text-sm">{emp.employeeCode}</td>
                                         <td className="px-4 py-3 whitespace-nowrap text-sm">{emp.emailWork}</td>
                                         <td className="px-4 py-3 whitespace-nowrap text-sm">
-                                            <span className={`inline-block px-2 py-0.5 text-xs font-semibold rounded-full capitalize ${
-                                                emp.status === 'ACTIVE' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                                            }`}>{emp.status?.toLowerCase()}</span>
+                                            <span className={`inline-block px-2 py-0.5 text-xs font-semibold rounded-full capitalize ${emp.status === 'ACTIVE' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                                                }`}>{emp.status?.toLowerCase()}</span>
                                         </td>
                                     </tr>
                                 )) : (
@@ -547,11 +589,10 @@ const EmployeePayroll = () => {
                                 <button
                                     key={tab.name}
                                     onClick={() => setActiveTab(tab.name)}
-                                    className={`whitespace-nowrap flex items-center py-3 px-1 border-b-2 font-medium text-sm transition-colors ${
-                                        activeTab === tab.name
-                                            ? 'border-blue-600 text-blue-600'
-                                            : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
-                                    }`}
+                                    className={`whitespace-nowrap flex items-center py-3 px-1 border-b-2 font-medium text-sm transition-colors ${activeTab === tab.name
+                                        ? 'border-blue-600 text-blue-600'
+                                        : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
+                                        }`}
                                 >
                                     <tab.icon className="mr-2 h-5 w-5" />
                                     {tab.name}

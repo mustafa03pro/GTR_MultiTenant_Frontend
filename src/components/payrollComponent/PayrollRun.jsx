@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
-import { Loader, PlusCircle, Play, Eye, CheckCircle, FileClock, AlertTriangle } from 'lucide-react';
+import { Loader, PlusCircle, Play, Eye, CheckCircle, FileClock, AlertTriangle, Download } from 'lucide-react';
 import ProcessPayrollRun from './ProcessPayrollRun';
 
 // --- Helper Components (copied from PayrollSettings for encapsulation) ---
@@ -59,32 +59,76 @@ const CreateRunModal = ({ isOpen, onClose, onCreate }) => {
     );
 };
 
-const PayslipsModal = ({ isOpen, onClose, run, payslips, loading }) => {
+const PayslipsModal = ({ isOpen, onClose, run, payslips, loading, onUpdateStatus, employees }) => {
     if (!run) return null;
+
+    // Helper to get employee display info
+    const getEmployeeDisplay = (p) => {
+        // First check directly on payslip object (if backend fixed)
+        if (p.employeeName) {
+            return { name: p.employeeName, code: p.employeeCode || p.employeeId };
+        }
+        // Fallback: look up in employees list
+        if (employees && employees.length > 0) {
+            const emp = employees.find(e => e.id === p.employeeId || e.employeeCode === p.employeeCode); // Match by ID or Code
+            if (emp) {
+                return { name: emp.name || `${emp.firstName} ${emp.lastName}`, code: emp.employeeCode };
+            }
+        }
+        // Last resort
+        return { name: null, code: p.employeeCode || p.employeeId };
+    };
+
     return (
         <Modal isOpen={isOpen} onClose={onClose} title={`Payslips for ${new Date(run.payPeriodStart).toLocaleString('default', { month: 'long' })} ${run.year}`}>
             {loading ? (
                 <div className="flex justify-center items-center p-8"><Loader className="animate-spin h-8 w-8 text-blue-600" /></div>
             ) : (
                 <div className="overflow-y-auto max-h-[60vh]">
-                    <table className="min-w-full divide-y divide-slate-200">
-                        <thead className="bg-slate-50">
-                            <tr>
-                                <th className="px-4 py-2 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Employee</th>
-                                <th className="px-4 py-2 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Net Salary</th>
-                                <th className="px-4 py-2 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Status</th>
-                            </tr>
-                        </thead>
-                        <tbody className="bg-white divide-y divide-slate-200 text-slate-700">
-                            {payslips.map(p => (
-                                <tr key={p.id}>
-                                    <td className="px-4 py-3 whitespace-nowrap text-sm">{p.employeeName || p.employeeId}</td>
-                                    <td className="px-4 py-3 whitespace-nowrap text-sm">{p.netSalary}</td>
-                                    <td className="px-4 py-3 whitespace-nowrap text-sm">{p.status}</td>
+                    <div className="overflow-x-auto">
+                        <table className="min-w-full divide-y divide-slate-200">
+                            <thead className="bg-slate-50">
+                                <tr>
+                                    <th className="px-4 py-2 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Employee</th>
+                                    <th className="px-4 py-2 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Net Salary</th>
+                                    <th className="px-4 py-2 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Status</th>
+                                    <th className="px-4 py-2 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Action</th>
                                 </tr>
-                            ))}
-                        </tbody>
-                    </table>
+                            </thead>
+                            <tbody className="bg-white divide-y divide-slate-200 text-slate-700">
+                                {payslips.map(p => {
+                                    const { name, code } = getEmployeeDisplay(p);
+                                    return (
+                                        <tr key={p.id}>
+                                            <td className="px-4 py-3 whitespace-nowrap text-sm font-medium">
+                                                {name ? (
+                                                    <span>{name} <span className="text-gray-500">({code})</span></span>
+                                                ) : (
+                                                    <span className="text-gray-500">{code}</span>
+                                                )}
+                                            </td>
+                                            <td className="px-4 py-3 whitespace-nowrap text-sm">{p.netSalary}</td>
+                                            <td className="px-4 py-3 whitespace-nowrap text-sm">
+                                                <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${p.status === 'PAID' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}>
+                                                    {p.status}
+                                                </span>
+                                            </td>
+                                            <td className="px-4 py-3 whitespace-nowrap text-sm">
+                                                {p.status !== 'PAID' && (
+                                                    <button
+                                                        onClick={() => onUpdateStatus(p.id, 'PAID')}
+                                                        className="text-green-600 hover:text-green-800 font-medium text-xs flex items-center gap-1"
+                                                    >
+                                                        <CheckCircle size={14} /> Mark Paid
+                                                    </button>
+                                                )}
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             )}
         </Modal>
@@ -101,13 +145,13 @@ const PayrollRun = () => {
     const [view, setView] = useState('list'); // 'list' or 'process'
     const [payslips, setPayslips] = useState([]);
     const [payslipsLoading, setPayslipsLoading] = useState(false);
+    const [employees, setEmployees] = useState([]); // Store employee details for lookup
 
     const API_URL = import.meta.env.VITE_API_BASE_URL;
 
     const fetchRuns = useCallback((showLoading = true) => {
         if (showLoading) setLoading(true);
 
-        setLoading(true);
         const token = localStorage.getItem('token');
         axios.get(`${API_URL}/payroll-runs`, { headers: { "Authorization": `Bearer ${token}` } })
             .then(res => setRuns(res.data.sort((a, b) => new Date(b.payPeriodStart) - new Date(a.payPeriodStart))))
@@ -116,6 +160,20 @@ const PayrollRun = () => {
                 setError('Failed to load payroll runs.');
             })
             .finally(() => setLoading(false));
+    }, [API_URL]);
+
+    // Fetch employees for name lookup
+    useEffect(() => {
+        const fetchEmployees = async () => {
+            try {
+                const token = localStorage.getItem('token');
+                const response = await axios.get(`${API_URL}/employees/all`, { headers: { "Authorization": `Bearer ${token}` } });
+                setEmployees(response.data);
+            } catch (err) {
+                console.error("Error fetching employees for lookup:", err);
+            }
+        };
+        fetchEmployees();
     }, [API_URL]);
 
     useEffect(() => { fetchRuns(); }, [fetchRuns]);
@@ -156,6 +214,73 @@ const PayrollRun = () => {
         }
     };
 
+    const handleUpdatePayslipStatus = async (payslipId, newStatus) => {
+        try {
+            const token = localStorage.getItem('token');
+            await axios.put(`${API_URL}/payslips/${payslipId}/status`, null, {
+                params: { status: newStatus },
+                headers: { "Authorization": `Bearer ${token}` }
+            });
+
+            // Update local state
+            setPayslips(prev => prev.map(p => p.id === payslipId ? { ...p, status: newStatus } : p));
+        } catch (err) {
+            console.error("Error updating payslip status:", err);
+            alert('Failed to update payslip status.');
+        }
+    };
+
+    const handleDownloadWpsSif = async (runId) => {
+        try {
+            const token = localStorage.getItem('token');
+            const response = await axios.get(`${API_URL}/payroll-runs/${runId}/wps-sif`, {
+                headers: { "Authorization": `Bearer ${token}` },
+                responseType: 'blob', // Important for file download
+            });
+
+            // Create a temporary URL for the blob
+            const url = window.URL.createObjectURL(new Blob([response.data]));
+            const link = document.createElement('a');
+            link.href = url;
+
+            // Extract filename from content-disposition header if available, or generate one
+            const contentDisposition = response.headers['content-disposition'];
+            let fileName = 'wps_sif.SIF';
+            if (contentDisposition) {
+                const fileNameMatch = contentDisposition.match(/filename="?(.+)"?/);
+                if (fileNameMatch.length === 2)
+                    fileName = fileNameMatch[1];
+            }
+
+            link.setAttribute('download', fileName);
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+        } catch (err) {
+            console.error("Error downloading WPS SIF:", err);
+            alert('Failed to download WPS SIF file.');
+        }
+    };
+
+    const handleUpdateStatus = async (runId, newStatus) => {
+        if (!window.confirm(`Are you sure you want to mark this run as ${newStatus}? This will update all employee payslips.`)) {
+            return;
+        }
+
+        try {
+            const token = localStorage.getItem('token');
+            await axios.put(`${API_URL}/payroll-runs/${runId}/status`, null, {
+                params: { status: newStatus },
+                headers: { "Authorization": `Bearer ${token}` }
+            });
+            fetchRuns(false); // Refresh list
+            alert(`Payroll run marked as ${newStatus} successfully.`);
+        } catch (err) {
+            console.error("Error updating status:", err);
+            alert('Failed to update payroll run status.');
+        }
+    };
+
     if (loading) return <div className="flex justify-center items-center p-8"><Loader className="animate-spin h-8 w-8 text-blue-600" /></div>;
     if (error) return <div className="text-center text-red-600 p-4 bg-red-50 rounded-md">{error}</div>;
 
@@ -192,7 +317,7 @@ const PayrollRun = () => {
                             </div>
                             {run.executedAt && <p className="text-xs">Executed on: {new Date(run.executedAt).toLocaleString()}</p>}
                         </div>
-                        <div className="p-4 bg-slate-50 border-t flex justify-end">
+                        <div className="p-4 bg-slate-50 border-t flex justify-end flex-wrap gap-2">
                             {run.status === 'DRAFT' && (
                                 <button onClick={() => handleExecuteRun(run.id)} className="btn-primary py-1 px-3 text-sm flex items-center gap-2">
                                     <Play size={14} /> Process Payroll
@@ -201,17 +326,41 @@ const PayrollRun = () => {
                             {run.status === 'PROCESSING' && (
                                 <span className="text-sm italic text-slate-500 flex items-center gap-2"><Loader className="animate-spin h-4 w-4" /> Processing...</span>
                             )}
-                            {(run.status === 'COMPLETED' || run.status === 'PAID' || run.status === 'GENERATED') && (
-                                <button onClick={() => handleViewPayslips(run)} className="btn-secondary py-1 px-3 text-sm flex items-center gap-2">
-                                    <Eye size={14} /> View Payslips
-                                </button>
+                            {(run.status === 'GENERATED' || run.status === 'COMPLETED') && (
+                                <>
+                                    <button onClick={() => handleViewPayslips(run)} className="btn-secondary py-1 px-3 text-sm flex items-center gap-2">
+                                        <Eye size={14} /> View Payslips
+                                    </button>
+                                    <button onClick={() => handleUpdateStatus(run.id, 'PAID')} className="bg-green-600 hover:bg-green-700 text-white py-1 px-3 rounded-md text-sm flex items-center gap-2 transition-colors">
+                                        <CheckCircle size={14} /> Mark as Paid
+                                    </button>
+                                </>
+                            )}
+                            {(run.status === 'PAID') && (
+                                <>
+                                    <button onClick={() => handleViewPayslips(run)} className="btn-secondary py-1 px-3 text-sm flex items-center gap-2">
+                                        <Eye size={14} /> View Payslips
+                                    </button>
+                                    <button onClick={() => handleDownloadWpsSif(run.id)} className="bg-cyan-600 hover:bg-cyan-700 text-white py-1 px-3 rounded-md text-sm flex items-center gap-2 transition-colors" title="Download WPS SIF File">
+                                        <Download size={14} /> WPS SIF
+                                    </button>
+                                    {/* Optional: Allow reverting if needed, though usually strict */}
+                                    {/* <button onClick={() => handleUpdateStatus(run.id, 'GENERATED')} className="text-red-600 hover:text-red-800 text-sm ml-2">Revert</button> */}
+                                </>
                             )}
                         </div>
                     </div>
                 ))}
             </div>
             <CreateRunModal isOpen={isCreateModalOpen} onClose={() => setCreateModalOpen(false)} onCreate={handleCreateRun} />
-            <PayslipsModal isOpen={isPayslipsModalOpen} onClose={() => setPayslipsModalOpen(false)} run={selectedRun} payslips={payslips} loading={payslipsLoading} />
+            <PayslipsModal
+                isOpen={isPayslipsModalOpen}
+                onClose={() => setPayslipsModalOpen(false)}
+                run={selectedRun}
+                payslips={payslips}
+                loading={payslipsLoading}
+                onUpdateStatus={handleUpdatePayslipStatus}
+            />
         </>
     );
 };

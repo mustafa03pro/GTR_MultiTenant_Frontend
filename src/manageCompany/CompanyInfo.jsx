@@ -40,6 +40,13 @@ const api = {
             headers: { ...getAuthHeaders(), 'Content-Type': 'multipart/form-data' }
         });
         return response.data;
+    },
+    getLogo: async () => {
+        const response = await axios.get(`${API_URL}/company-info/logo`, {
+            headers: getAuthHeaders(),
+            responseType: 'blob'
+        });
+        return URL.createObjectURL(response.data);
     }
 };
 
@@ -54,7 +61,9 @@ const InputField = ({ label, id, ...props }) => (
 const InfoDisplay = ({ label, value }) => (
     <div>
         <p className="text-sm text-foreground-muted">{label}</p>
-        <p className="font-medium text-foreground">{value || <span className="text-foreground-muted/50">N/A</span>}</p>
+        <p className="font-medium text-foreground">
+            {value !== null && value !== undefined && value !== '' ? value : <span className="text-foreground-muted/50">N/A</span>}
+        </p>
     </div>
 );
 
@@ -65,12 +74,15 @@ const CompanyInfo = () => {
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState('');
     const [logoFile, setLogoFile] = useState(null);
+
     const [logoPreview, setLogoPreview] = useState(null);
+    const [fetchedLogoUrl, setFetchedLogoUrl] = useState(null);
 
     const initialFormData = {
-        companyName: '', address: '', city: '', state: '', postalCode: '', country: '',
+        companyName: '', address: '', city: '', emirate: '', poBox: '', country: '',
         phone: '', email: '', website: '', pan: '', tan: '', gstIn: '',
-        pfRegistrationNumber: '', esiRegistrationNumber: ''
+        pfRegistrationNumber: '', esiRegistrationNumber: '',
+        tradeLicenseNumber: '', tradeLicenseExpiry: '', trn: '', mohreEstablishmentId: '', employerBankRoutingCode: '', visaQuotaTotal: ''
     };
     const [formData, setFormData] = useState(initialFormData);
 
@@ -82,7 +94,14 @@ const CompanyInfo = () => {
                 if (data && data.companyName) {
                     setCompanyInfo(data);
                     setFormData(data);
-                    setLogoPreview(data.logoUrl ? constructImageUrl(data.logoUrl) : null);
+                    if (data.logoUrl) {
+                        api.getLogo()
+                            .then(url => {
+                                setFetchedLogoUrl(url);
+                                setLogoPreview(url); // Also set preview for edit mode if needed
+                            })
+                            .catch(e => console.error("Failed to fetch logo image", e));
+                    }
                 } else {
                     setCompanyInfo(null);
                     setFormData(initialFormData);
@@ -141,7 +160,8 @@ const CompanyInfo = () => {
     const handleCancel = () => {
         setIsEditing(false);
         setFormData(companyInfo || initialFormData);
-        setLogoPreview(companyInfo?.logoUrl ? constructImageUrl(companyInfo.logoUrl) : null);
+        setFormData(companyInfo || initialFormData);
+        setLogoPreview(fetchedLogoUrl);
     };
 
     if (loading) {
@@ -172,13 +192,23 @@ const CompanyInfo = () => {
                     <InputField label="Website" id="website" name="website" value={formData.website || ''} onChange={handleChange} />
                     <InputField label="Address" id="address" name="address" value={formData.address || ''} onChange={handleChange} className="md:col-span-3" />
                     <InputField label="City" id="city" name="city" value={formData.city || ''} onChange={handleChange} />
-                    <InputField label="State / Emirate" id="state" name="state" value={formData.state || ''} onChange={handleChange} />
-                    <InputField label="Postal Code / P.O. Box" id="postalCode" name="postalCode" value={formData.postalCode || ''} onChange={handleChange} />
+                    <InputField label="Emirate" id="emirate" name="emirate" value={formData.emirate || ''} onChange={handleChange} />
+                    <InputField label="P.O. Box" id="poBox" name="poBox" value={formData.poBox || ''} onChange={handleChange} />
                     <InputField label="Country" id="country" name="country" value={formData.country || ''} onChange={handleChange} />
                     <InputField label="PAN / TRN" id="pan" name="pan" value={formData.pan || ''} onChange={handleChange} />
                     <InputField label="GSTIN / TAN" id="tan" name="tan" value={formData.tan || ''} onChange={handleChange} />
                     <InputField label="PF Registration No." id="pfRegistrationNumber" name="pfRegistrationNumber" value={formData.pfRegistrationNumber || ''} onChange={handleChange} />
                     <InputField label="ESI Registration No." id="esiRegistrationNumber" name="esiRegistrationNumber" value={formData.esiRegistrationNumber || ''} onChange={handleChange} />
+
+                    <div className="md:col-span-3 border-t border-border mt-4 mb-2 pt-4">
+                        <h4 className="font-semibold text-foreground-muted mb-4">UAE WPS & Statutory Details</h4>
+                    </div>
+                    <InputField label="MOHRE Establishment ID" id="mohreEstablishmentId" name="mohreEstablishmentId" value={formData.mohreEstablishmentId || ''} onChange={handleChange} />
+                    <InputField label="Employer Bank Routing Code (Agent ID)" id="employerBankRoutingCode" name="employerBankRoutingCode" value={formData.employerBankRoutingCode || ''} onChange={handleChange} />
+                    <InputField label="Total Visa Quota" id="visaQuotaTotal" name="visaQuotaTotal" type="number" value={formData.visaQuotaTotal ?? ''} onChange={handleChange} />
+                    <InputField label="Trade License Number" id="tradeLicenseNumber" name="tradeLicenseNumber" value={formData.tradeLicenseNumber || ''} onChange={handleChange} />
+                    <InputField label="Trade License Expiry" id="tradeLicenseExpiry" name="tradeLicenseExpiry" type="date" value={formData.tradeLicenseExpiry || ''} onChange={handleChange} />
+                    <InputField label="TRN (Tax Registration No.)" id="trn" name="trn" value={formData.trn || ''} onChange={handleChange} />
                 </div>
                 <div className="flex justify-end gap-2 pt-4 border-t border-border">
                     <button type="button" onClick={handleCancel} className="btn-secondary" disabled={saving}>Cancel</button>
@@ -217,7 +247,7 @@ const CompanyInfo = () => {
             <div className="space-y-6">
                 {companyInfo.logoUrl && (
                     <Section title="Company Logo">
-                        <img src={constructImageUrl(companyInfo.logoUrl)} alt="Company Logo" className="h-24 w-auto object-contain rounded-md border p-2 bg-white" />
+                        <img src={fetchedLogoUrl || constructImageUrl(companyInfo.logoUrl)} alt="Company Logo" className="h-24 w-auto object-contain rounded-md border p-2 bg-white" />
                     </Section>
                 )}
                 <Section title="General Information">
@@ -229,8 +259,8 @@ const CompanyInfo = () => {
                 <Section title="Address">
                     <InfoDisplay label="Address" value={companyInfo.address} />
                     <InfoDisplay label="City" value={companyInfo.city} />
-                    <InfoDisplay label="State / Emirate" value={companyInfo.state} />
-                    <InfoDisplay label="Postal Code / P.O. Box" value={companyInfo.postalCode} />
+                    <InfoDisplay label="Emirate" value={companyInfo.emirate} />
+                    <InfoDisplay label="P.O. Box" value={companyInfo.poBox} />
                     <InfoDisplay label="Country" value={companyInfo.country} />
                 </Section>
                 <Section title="Statutory Details">
@@ -238,6 +268,14 @@ const CompanyInfo = () => {
                     <InfoDisplay label="GSTIN / TAN" value={companyInfo.tan} />
                     <InfoDisplay label="PF Registration No." value={companyInfo.pfRegistrationNumber} />
                     <InfoDisplay label="ESI Registration No." value={companyInfo.esiRegistrationNumber} />
+                </Section>
+                <Section title="UAE WPS & Compliance">
+                    <InfoDisplay label="MOHRE Establishment ID" value={companyInfo.mohreEstablishmentId} />
+                    <InfoDisplay label="Total Visa Quota" value={companyInfo.visaQuotaTotal} />
+                    <InfoDisplay label="Employer Bank Routing Code" value={companyInfo.employerBankRoutingCode} />
+                    <InfoDisplay label="Trade License Number" value={companyInfo.tradeLicenseNumber} />
+                    <InfoDisplay label="Trade License Expiry" value={companyInfo.tradeLicenseExpiry} />
+                    <InfoDisplay label="TRN" value={companyInfo.trn} />
                 </Section>
             </div>
         </div>
