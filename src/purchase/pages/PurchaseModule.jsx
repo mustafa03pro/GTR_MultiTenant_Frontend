@@ -9,7 +9,10 @@ import {
     Settings, 
     LogOut, 
     Menu,
-    ArrowLeft
+    ArrowLeft,
+    FileText,
+    ChevronDown,
+    ChevronRight,
 } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import PurchaseOrderPage from '../components/PurchaseOrderPage';
@@ -24,6 +27,15 @@ import PurchaseInvoiceView from '../components/PurchaseInvoiceView';
 import PurchasePaymentView from '../components/PurchasePaymentView';
 import PurchaseGrnView from '../components/PurchaseGrnView';
 import PurchaseGrnForm from '../components/PurchaseGrnForm';
+import PurchaseDebitNotePage from '../components/PurchaseDebitNotePage';
+import PurchaseDebitNoteForm from '../components/PurchaseDebitNoteForm';
+import PurchaseDebitNoteView from '../components/PurchaseDebitNoteView';
+import SupplierBalanceReport from './reports/SupplierBalanceReport';
+import BillDetailsReport from './reports/BillDetailsReport';
+import PaymentMadeReport from './reports/PaymentMadeReport';
+import PurchaseOrdersBySupplierReport from './reports/PurchaseOrdersBySupplierReport';
+import PurchaseOrderDetailsReport from './reports/PurchaseOrderDetailsReport';
+import SupplierSOAReport from './reports/SupplierSOAReport';
 
 
 const purchaseNavLinks = [
@@ -37,6 +49,7 @@ const purchaseNavLinks = [
 const SidebarContent = ({ onLinkClick }) => {
     const location = useLocation();
     const navigate = useNavigate();
+    const [reportsOpen, setReportsOpen] = useState(true);
 
     const handleLogout = () => {
         localStorage.clear();
@@ -62,6 +75,71 @@ const SidebarContent = ({ onLinkClick }) => {
             </div>
             <nav className="flex-1 px-4 py-4 space-y-1 overflow-y-auto">
                 {purchaseNavLinks.map((item) => <NavItem key={item.name} item={item} />)}
+
+                {/* Reports Section */}
+                <div className="pt-2">
+                    <button 
+                        onClick={() => setReportsOpen(!reportsOpen)}
+                        className="flex items-center w-full px-4 py-2.5 text-sm font-medium rounded-lg text-foreground-muted hover:bg-background-muted group"
+                    >
+                        <FileText className="h-5 w-5 mr-3 flex-shrink-0 text-indigo-500" />
+                        <span className="flex-1 text-left">Reports</span>
+                        {reportsOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                    </button>
+                    {reportsOpen && (
+                        <div className="pl-4 mt-1 space-y-1">
+                            <NavLink 
+                                to="/purchase-dashboard/reports/supplier-balance" 
+                                onClick={onLinkClick}
+                                className={({ isActive }) => `flex items-center px-4 py-2 text-sm font-medium rounded-lg transition-colors ${ isActive ? 'bg-primary/10 text-primary' : 'text-foreground-muted hover:bg-background-muted' }`}
+                            >
+                                <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 mr-3" />
+                                Supplier Balances
+                            </NavLink>
+                            <NavLink 
+                                to="/purchase-dashboard/reports/bill-details" 
+                                onClick={onLinkClick}
+                                className={({ isActive }) => `flex items-center px-4 py-2 text-sm font-medium rounded-lg transition-colors ${ isActive ? 'bg-primary/10 text-primary' : 'text-foreground-muted hover:bg-background-muted' }`}
+                            >
+                                <span className="w-1.5 h-1.5 rounded-full bg-blue-500 mr-3" />
+                                Bill Details
+                            </NavLink>
+                            <NavLink 
+                                to="/purchase-dashboard/reports/payments-made" 
+                                onClick={onLinkClick}
+                                className={({ isActive }) => `flex items-center px-4 py-2 text-sm font-medium rounded-lg transition-colors ${ isActive ? 'bg-primary/10 text-primary' : 'text-foreground-muted hover:bg-background-muted' }`}
+                            >
+                                <span className="w-1.5 h-1.5 rounded-full bg-purple-500 mr-3" />
+                                Payments Made
+                            </NavLink>
+                            <NavLink 
+                                to="/purchase-dashboard/reports/purchase-orders-by-supplier" 
+                                onClick={onLinkClick}
+                                className={({ isActive }) => `flex items-center px-4 py-2 text-sm font-medium rounded-lg transition-colors ${ isActive ? 'bg-primary/10 text-primary' : 'text-foreground-muted hover:bg-background-muted' }`}
+                            >
+                                <span className="w-1.5 h-1.5 rounded-full bg-rose-500 mr-3" />
+                               Purchase Orders By Supplier
+                            </NavLink>
+                            <NavLink 
+                                to="/purchase-dashboard/reports/purchase-order-details" 
+                                onClick={onLinkClick}
+                                className={({ isActive }) => `flex items-center px-4 py-2 text-sm font-medium rounded-lg transition-colors ${ isActive ? 'bg-primary/10 text-primary' : 'text-foreground-muted hover:bg-background-muted' }`}
+                            >
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-3" />
+                                Purchase Order Details
+                            </NavLink>
+                            <NavLink 
+                                to="/purchase-dashboard/reports/supplier-soa" 
+                                onClick={onLinkClick}
+                                className={({ isActive }) => `flex items-center px-4 py-2 text-sm font-medium rounded-lg transition-colors ${ isActive ? 'bg-primary/10 text-primary' : 'text-foreground-muted hover:bg-background-muted' }`}
+                            >
+                                <span className="w-1.5 h-1.5 rounded-full bg-pink-500 mr-3" />
+                                Supplier SOA
+                            </NavLink>
+
+                        </div>
+                    )}
+                </div>
             </nav>
             <div className="p-4 border-t border-border flex-shrink-0 space-y-2">
                 <NavLink to="/company-settings/purchase" onClick={onLinkClick} className={({ isActive }) => `flex items-center px-4 py-2.5 text-sm font-medium rounded-lg transition-colors group ${ isActive ? 'bg-primary text-primary-foreground shadow-sm' : 'text-foreground-muted hover:bg-background-muted' }`}>
@@ -143,6 +221,18 @@ const PurchaseModule = () => {
                 <Route path="payments/edit/:id" element={<PurchasePaymentForm />} />
                 <Route path="payments/view/:id" element={<PurchasePaymentView />} />
 
+                <Route path="debit-notes" element={<PurchaseDebitNotePage />} />
+                <Route path="debit-notes/new" element={<PurchaseDebitNoteForm />} />
+                <Route path="debit-notes/edit/:id" element={<PurchaseDebitNoteForm />} />
+                <Route path="debit-notes/view/:id" element={<PurchaseDebitNoteView />} />
+                
+                <Route path="reports/supplier-balance" element={<SupplierBalanceReport />} />
+                <Route path="reports/bill-details" element={<BillDetailsReport />} />
+                <Route path="reports/payments-made" element={<PaymentMadeReport />} />
+                <Route path="reports/purchase-orders-by-supplier" element={<PurchaseOrdersBySupplierReport />} />
+                <Route path="reports/purchase-order-details" element={<PurchaseOrderDetailsReport />} />
+                <Route path="reports/supplier-soa" element={<SupplierSOAReport />} />
+                
                 {/* Add other purchase module routes here */}
             </Routes>
         </PurchaseLayout>
